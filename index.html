@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WaveVerify — VLSI Waveform Checker</title>
+<style>
+  /* ═══════════════════════════════════════════════
+     DESIGN: Industrial/utilitarian lab instrument
+     Dark oscilloscope aesthetic — green phosphor on
+     near-black, monospaced precision, clean grid lines.
+     ═══════════════════════════════════════════════ */
+
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap');
+
+  :root {
+    --bg:          #0a0e0a;
+    --surface:     #0f1510;
+    --surface2:    #141c14;
+    --border:      #1e2d1e;
+    --border-lit:  #2a4a2a;
+    --green:       #39ff72;
+    --green-dim:   #1a7a38;
+    --green-glow:  rgba(57,255,114,0.15);
+    --red:         #ff3939;
+    --red-dim:     #7a1a1a;
+    --red-glow:    rgba(255,57,57,0.15);
+    --yellow:      #ffd700;
+    --text:        #c8e8c8;
+    --text-dim:    #5a7a5a;
+    --mono:        'Share Tech Mono', monospace;
+    --display:     'Rajdhani', sans-serif;
+    --radius:      2px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Scanline overlay for that CRT feel */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .logo-icon {
+    width: 36px; height: 36px;
+    border: 2px solid var(--green);
+    border-radius: var(--radius);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 12px var(--green-glow);
+    position: relative;
+    flex-shrink: 0;
+  }
+  .logo-icon svg { width: 20px; height: 20px; fill: var(--green); }
+
+  .logo-text {
+    font-family: var(--display);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--green);
+    text-transform: uppercase;
+    text-shadow: 0 0 18px var(--green-glow);
+  }
+  .logo-sub {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    margin-top: 2px;
+  }
+
+  .header-right {
+    margin-left: auto;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+  }
+
+  .status-led {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .led {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green-dim);
+    box-shadow: 0 0 6px var(--green-dim);
+    transition: all 0.3s;
+  }
+  .led.active { background: var(--green); box-shadow: 0 0 10px var(--green); }
+  .led.error  { background: var(--red);   box-shadow: 0 0 10px var(--red);   }
+
+  /* ── Layout ── */
+  main {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    grid-template-rows: auto 1fr auto;
+    min-height: calc(100vh - 69px);
+    gap: 0;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    grid-row: 1 / 4;
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .panel {
+    border-bottom: 1px solid var(--border);
+    padding: 16px;
+  }
+  .panel-title {
+    font-family: var(--display);
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel-title::before {
+    content: '';
+    width: 12px; height: 1px;
+    background: var(--green-dim);
+  }
+
+  /* ── Upload Zone ── */
+  .upload-zone {
+    border: 1px dashed var(--border-lit);
+    border-radius: var(--radius);
+    padding: 24px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--green);
+    background: var(--green-glow);
+  }
+  .upload-zone input[type="file"] {
+    position: absolute; inset: 0;
+    opacity: 0; cursor: pointer;
+    width: 100%; height: 100%;
+  }
+  .upload-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+    display: block;
+    filter: drop-shadow(0 0 6px var(--green-glow));
+  }
+  .upload-zone p { color: var(--text-dim); font-size: 11px; line-height: 1.6; }
+  .upload-zone strong { color: var(--green); display: block; margin-bottom: 4px; }
+
+  /* ── Buttons ── */
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 10px 16px;
+    border: 1px solid var(--green-dim);
+    background: transparent;
+    color: var(--green);
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: var(--radius);
+    transition: all 0.2s;
+    margin-top: 10px;
+    text-align: left;
+  }
+  .btn:hover {
+    background: var(--green-glow);
+    border-color: var(--green);
+    box-shadow: 0 0 12px var(--green-glow);
+  }
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .btn.secondary { border-color: var(--border-lit); color: var(--text-dim); font-size: 11px; }
+  .btn.secondary:hover { border-color: var(--text-dim); background: var(--surface2); box-shadow: none; }
+  .btn::before { content: '> '; opacity: 0.5; }
+
+  /* ── Verdict Box ── */
+  .verdict-box {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    min-height: 60px;
+    transition: all 0.4s;
+    background: var(--surface2);
+  }
+  .verdict-box.correct {
+    border-color: var(--green);
+    background: var(--green-glow);
+    box-shadow: 0 0 20px rgba(57,255,114,0.1);
+  }
+  .verdict-box.incorrect {
+    border-color: var(--red);
+    background: var(--red-glow);
+    box-shadow: 0 0 20px rgba(255,57,57,0.1);
+  }
+  .verdict-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  .verdict-value {
+    font-family: var(--display);
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+  }
+  .verdict-box.correct  .verdict-value { color: var(--green); text-shadow: 0 0 12px var(--green-glow); }
+  .verdict-box.incorrect .verdict-value { color: var(--red); text-shadow: 0 0 12px var(--red-glow); }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .stat {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 10px;
+  }
+  .stat-label { font-size: 9px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; }
+  .stat-value { font-size: 16px; color: var(--green); margin-top: 2px; font-weight: bold; }
+
+  /* ── Error List ── */
+  .error-list {
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .error-list::-webkit-scrollbar { width: 4px; }
+  .error-list::-webkit-scrollbar-track { background: var(--surface); }
+  .error-list::-webkit-scrollbar-thumb { background: var(--border-lit); border-radius: 2px; }
+
+  .error-item {
+    background: var(--red-glow);
+    border: 1px solid var(--red-dim);
+    border-left: 3px solid var(--red);
+    border-radius: var(--radius);
+    padding: 6px 8px;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .error-time { color: var(--yellow); font-weight: bold; }
+  .error-sig  { color: var(--green); }
+  .error-val  { color: var(--red); }
+
+  /* ── Truth Table ── */
+  .truth-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  .truth-table th {
+    background: var(--surface2);
+    color: var(--text-dim);
+    padding: 5px 8px;
+    text-align: left;
+    font-weight: normal;
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--border);
+  }
+  .truth-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  .truth-table tr:last-child td { border-bottom: none; }
+  .truth-table .val-1 { color: var(--green); }
+  .truth-table .val-0 { color: var(--text-dim); }
+  .truth-table td:first-child { color: var(--yellow); }
+
+  /* ── Main Content ── */
+  .main-content {
+    grid-column: 2;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .toolbar {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--surface);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .toolbar-item { display: flex; align-items: center; gap: 6px; }
+  .toolbar-item span { color: var(--text); }
+
+  /* ── Waveform Canvas Area ── */
+  .waveform-area {
+    flex: 1;
+    padding: 20px;
+    overflow-x: auto;
+    overflow-y: auto;
+  }
+
+  .waveform-container {
+    min-width: 700px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .waveform-header {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    border-bottom: 1px solid var(--border);
+  }
+  .waveform-label-col {
+    padding: 8px 12px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    border-right: 1px solid var(--border);
+  }
+  .timeline-header {
+    padding: 8px 12px;
+    position: relative;
+    height: 30px;
+    overflow: hidden;
+  }
+
+  .signal-rows { }
+  .signal-row {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    border-bottom: 1px solid var(--border);
+    min-height: 40px;
+  }
+  .signal-row:last-child { border-bottom: none; }
+  .signal-name {
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+    color: var(--green);
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+    font-weight: bold;
+  }
+  .signal-canvas-wrap {
+    position: relative;
+    height: 40px;
+  }
+  .signal-canvas-wrap canvas {
+    display: block;
+    width: 100%;
+    height: 40px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-dim);
+  }
+  .empty-state .big-icon { font-size: 48px; margin-bottom: 16px; display: block; opacity: 0.4; }
+  .empty-state p { font-size: 12px; line-height: 2; }
+  .empty-state strong { color: var(--text); }
+
+  /* ── Log Panel ── */
+  .log-panel {
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    padding: 10px 20px;
+    max-height: 120px;
+    overflow-y: auto;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.8;
+  }
+  .log-line { display: flex; gap: 10px; }
+  .log-time { color: var(--text-dim); flex-shrink: 0; font-size: 10px; }
+  .log-msg.info  { color: var(--text); }
+  .log-msg.ok    { color: var(--green); }
+  .log-msg.error { color: var(--red); }
+  .log-msg.warn  { color: var(--yellow); }
+
+  /* ── Loading Overlay ── */
+  .loading-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(10,14,10,0.85);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .loading-overlay.active { display: flex; }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 2px solid var(--border-lit);
+    border-top-color: var(--green);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text {
+    color: var(--green);
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    animation: pulse 1s ease-in-out infinite alternate;
+  }
+  @keyframes pulse { from { opacity: 0.5; } to { opacity: 1; } }
+
+  /* ── Responsive ── */
+  @media (max-width: 800px) {
+    main { grid-template-columns: 1fr; }
+    .sidebar { grid-row: auto; border-right: none; border-bottom: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">Processing waveform...</div>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="logo-icon">
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M2 12 L5 12 L5 6 L8 6 L8 12 L11 12 L11 4 L14 4 L14 12 L17 12 L17 8 L20 8 L20 12 L22 12"/>
+      <path d="M2 12 L5 12 L5 6 L8 6 L8 12 L11 12 L11 4 L14 4 L14 12 L17 12 L17 8 L20 8 L20 12 L22 12" fill="none" stroke="#39ff72" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+  </div>
+  <div>
+    <div class="logo-text">WaveVerify</div>
+    <div class="logo-sub">VLSI Waveform Verification Tool</div>
+  </div>
+  <div class="header-right">
+    <div class="status-led">
+      <div class="led" id="backendLed"></div>
+      <span id="backendStatus">Backend</span>
+    </div>
+    <div class="status-led">
+      <div class="led" id="waveformLed"></div>
+      <span>Waveform</span>
+    </div>
+  </div>
+</header>
+
+<!-- Main Layout -->
+<main>
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+
+    <!-- Upload Panel -->
+    <div class="panel">
+      <div class="panel-title">Upload VCD</div>
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="fileInput" accept=".vcd">
+        <span class="upload-icon">⬡</span>
+        <strong>Drop .vcd file here</strong>
+        <p>or click to browse<br>Value Change Dump format</p>
+      </div>
+      <div id="fileName" style="margin-top:8px; font-size:10px; color:var(--text-dim); min-height:16px;"></div>
+      <button class="btn" id="uploadBtn" disabled>Verify Waveform</button>
+      <button class="btn secondary" id="loadDemoBtn">Load Demo (Correct)</button>
+      <button class="btn secondary" id="loadDemoErrBtn">Load Demo (With Errors)</button>
+    </div>
+
+    <!-- Verdict Panel -->
+    <div class="panel">
+      <div class="panel-title">Verdict</div>
+      <div class="verdict-box" id="verdictBox">
+        <div class="verdict-label">Verification Result</div>
+        <div class="verdict-value" id="verdictValue">—</div>
+      </div>
+      <div class="stats-row" id="statsRow" style="display:none">
+        <div class="stat">
+          <div class="stat-label">Checks</div>
+          <div class="stat-value" id="statChecks">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Errors</div>
+          <div class="stat-value" id="statErrors" style="color:var(--red)">0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error List Panel -->
+    <div class="panel" id="errorsPanel">
+      <div class="panel-title">Mismatches</div>
+      <div class="error-list" id="errorList">
+        <span style="color:var(--text-dim); font-size:11px;">No errors detected.</span>
+      </div>
+    </div>
+
+    <!-- Truth Table Panel -->
+    <div class="panel">
+      <div class="panel-title">Expected Truth Table</div>
+      <div style="overflow-x:auto;">
+        <table class="truth-table" id="truthTable"></table>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ── Main Content ── -->
+  <div class="main-content">
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="toolbar-item">TIMESCALE: <span id="toolbarTimescale">—</span></div>
+      <div class="toolbar-item">SIGNALS: <span id="toolbarSignals">—</span></div>
+      <div class="toolbar-item">TIME RANGE: <span id="toolbarRange">—</span></div>
+      <div class="toolbar-item" style="margin-left:auto;">
+        <span style="color:var(--green-dim)">■</span> Actual &nbsp;
+        <span style="color:var(--yellow); opacity:0.7">┄</span> Expected &nbsp;
+        <span style="color:var(--red)">▲</span> Mismatch
+      </div>
+    </div>
+
+    <!-- Waveform Viewer -->
+    <div class="waveform-area" id="waveformArea">
+      <div class="empty-state" id="emptyState">
+        <span class="big-icon">〜</span>
+        <p>
+          <strong>No waveform loaded.</strong><br>
+          Upload a .vcd file or use the demo buttons<br>
+          to begin verification.
+        </p>
+      </div>
+      <div class="waveform-container" id="waveformContainer" style="display:none">
+        <div class="waveform-header">
+          <div class="waveform-label-col">Signal</div>
+          <div class="timeline-header" id="timelineHeader"></div>
+        </div>
+        <div class="signal-rows" id="signalRows"></div>
+      </div>
+    </div>
+
+    <!-- Log Panel -->
+    <div class="log-panel" id="logPanel"></div>
+  </div>
+
+</main>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// WAVEVERIFY — Frontend Logic
+// ═══════════════════════════════════════════════════════
+
+const API_BASE = 'http://localhost:5000';
+
+// ── Truth table (mirrors backend hardcoded table) ──────
+const TRUTH_TABLE = {
+  0:  { clk: '0', d: '0', q: '0' },
+  10: { clk: '1', d: '0', q: '0' },
+  20: { clk: '0', d: '1', q: '0' },
+  30: { clk: '1', d: '1', q: '1' },
+  40: { clk: '0', d: '0', q: '1' },
+  50: { clk: '1', d: '0', q: '0' },
+  60: { clk: '0', d: '0', q: '0' },
+};
+
+// ── State ──────────────────────────────────────────────
+let state = {
+  file: null,
+  waveformData: null,   // { timescale, signals, expected, time_range }
+  verifyResult: null,   // { verdict, errors, summary }
+  useBackend: false,    // whether backend is reachable
+};
+
+// ── DOM refs ───────────────────────────────────────────
+const fileInput      = document.getElementById('fileInput');
+const uploadZone     = document.getElementById('uploadZone');
+const uploadBtn      = document.getElementById('uploadBtn');
+const loadDemoBtn    = document.getElementById('loadDemoBtn');
+const loadDemoErrBtn = document.getElementById('loadDemoErrBtn');
+const fileName       = document.getElementById('fileName');
+const verdictBox     = document.getElementById('verdictBox');
+const verdictValue   = document.getElementById('verdictValue');
+const statsRow       = document.getElementById('statsRow');
+const statChecks     = document.getElementById('statChecks');
+const statErrors     = document.getElementById('statErrors');
+const errorList      = document.getElementById('errorList');
+const waveformContainer = document.getElementById('waveformContainer');
+const emptyState     = document.getElementById('emptyState');
+const signalRows     = document.getElementById('signalRows');
+const timelineHeader = document.getElementById('timelineHeader');
+const logPanel       = document.getElementById('logPanel');
+const loadingOverlay = document.getElementById('loadingOverlay');
+const loadingText    = document.getElementById('loadingText');
+const backendLed     = document.getElementById('backendLed');
+const backendStatus  = document.getElementById('backendStatus');
+const waveformLed    = document.getElementById('waveformLed');
+const toolbarTimescale = document.getElementById('toolbarTimescale');
+const toolbarSignals   = document.getElementById('toolbarSignals');
+const toolbarRange     = document.getElementById('toolbarRange');
+
+// ═══════════════════════════════════════════════════════
+// SECTION A: VCD PARSER (JavaScript)
+// Pure JS fallback — works without backend.
+// Parses: $timescale, $var, #time, value changes
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Parse VCD text content into a structured object.
+ * @param {string} text - Raw VCD file content
+ * @returns {{ timescale: string, signals: Object }}
+ */
+function parseVCD(text) {
+  const signals = {};        // id → name
+  const transitions = {};    // name → [{time, value}]
+  let timescale = '1ns';
+  let currentTime = 0;
+
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  let i = 0;
+
+  // Helper: consume until $end
+  function readUntilEnd() {
+    let acc = '';
+    while (i < lines.length) {
+      const l = lines[i++].trim();
+      if (l.includes('$end')) { acc += ' ' + l.replace('$end', ''); break; }
+      acc += ' ' + l;
+    }
+    return acc.trim();
+  }
+
+  while (i < lines.length) {
+    const line = lines[i++].trim();
+    if (!line) continue;
+
+    // Timescale
+    if (line.startsWith('$timescale')) {
+      const rest = line.includes('$end')
+        ? line.replace('$timescale', '').replace('$end', '').trim()
+        : readUntilEnd();
+      timescale = rest.trim();
+      continue;
+    }
+
+    // Variable declaration: $var wire 1 ! clk $end
+    if (line.startsWith('$var')) {
+      const rest = line + (line.includes('$end') ? '' : ' ' + readUntilEnd());
+      const m = rest.match(/\$var\s+\S+\s+\d+\s+(\S+)\s+(\S+)/);
+      if (m) {
+        const [, idCode, sigName] = m;
+        signals[idCode] = sigName;
+        if (!transitions[sigName]) transitions[sigName] = [];
+      }
+      continue;
+    }
+
+    // Skip header sections
+    if (line.startsWith('$') && !line.startsWith('#')) continue;
+
+    // Timestamp
+    if (line.startsWith('#')) {
+      currentTime = parseInt(line.slice(1), 10);
+      continue;
+    }
+
+    // Scalar value change: e.g. "0!" or "1@"
+    const m = line.match(/^([01xzXZ])(\S+)/);
+    if (m) {
+      const [, val, id] = m;
+      if (signals[id]) {
+        transitions[signals[id]].push({ time: currentTime, value: val.toLowerCase() });
+      }
+      continue;
+    }
+  }
+
+  return { timescale, signals: transitions };
+}
+
+
+// ═══════════════════════════════════════════════════════
+// SECTION B: WAVEFORM CHECKER (JavaScript)
+// Compares parsed transitions against the truth table.
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Get the signal value at a given time by finding the last
+ * transition at or before `time`.
+ */
+function getValueAt(transitions, time) {
+  let val = 'x';
+  for (const { time: t, value } of transitions) {
+    if (t <= time) val = value;
+    else break;
+  }
+  return val;
+}
+
+/**
+ * Compare parsed waveform against TRUTH_TABLE.
+ * @returns {{ verdict, errors, checked }}
+ */
+function checkWaveform(parsed) {
+  const errors = [];
+  let checked = 0;
+
+  for (const [timeStr, expected] of Object.entries(TRUTH_TABLE)) {
+    const time = Number(timeStr);
+    for (const [sigName, expectedVal] of Object.entries(expected)) {
+      checked++;
+      const tr = parsed.signals[sigName];
+      if (!tr) {
+        errors.push({
+          time,
+          signal: sigName,
+          expected: expectedVal,
+          actual: 'MISSING',
+          message: `Signal '${sigName}' not found in VCD`,
+        });
+        continue;
+      }
+      const actual = getValueAt(tr, time);
+      if (actual !== expectedVal) {
+        errors.push({
+          time,
+          signal: sigName,
+          expected: expectedVal,
+          actual,
+          message: `'${sigName}' at t=${time}ns — expected '${expectedVal}', got '${actual}'`,
+        });
+      }
+    }
+  }
+
+  return {
+    verdict: errors.length === 0 ? 'Correct' : 'Incorrect',
+    errors,
+    checked,
+  };
+}
+
+/**
+ * Build a vis-friendly structure from parsed VCD.
+ */
+function buildVisData(parsed) {
+  const allTimes = [];
+  for (const tr of Object.values(parsed.signals)) {
+    tr.forEach(({ time }) => allTimes.push(time));
+  }
+  const timeRange = allTimes.length
+    ? [Math.min(...allTimes), Math.max(...allTimes)]
+    : [0, 0];
+
+  const expected = {};
+  for (const [t, sigs] of Object.entries(TRUTH_TABLE)) {
+    for (const [sig, val] of Object.entries(sigs)) {
+      if (!expected[sig]) expected[sig] = [];
+      expected[sig].push({ time: Number(t), value: val });
+    }
+  }
+
+  return {
+    timescale: parsed.timescale,
+    signals: parsed.signals,
+    expected,
+    time_range: timeRange,
+  };
+}
+
+
+// ═══════════════════════════════════════════════════════
+// SECTION C: DEMO VCD GENERATOR
+// ═══════════════════════════════════════════════════════
+
+function makeDemoVCD(withError = false) {
+  const qAt30 = withError ? '0' : '1';
+  return `$timescale 1ns $end
+$scope module dff $end
+$var wire 1 ! clk $end
+$var wire 1 @ d $end
+$var wire 1 # q $end
+$upscope $end
+$enddefinitions $end
+$dumpvars
+0!
+0@
+0#
+$end
+#0
+0!
+0@
+0#
+#10
+1!
+#20
+0!
+1@
+#30
+1!
+${qAt30}#
+#40
+0!
+0@
+#50
+1!
+0#
+#60
+0!
+`;
+}
+
+
+// ═══════════════════════════════════════════════════════
+// SECTION D: RENDERING — Timeline + Waveforms
+// ═══════════════════════════════════════════════════════
+
+const COLORS = {
+  correct: '#39ff72',
+  error:   '#ff3939',
+  expected: '#ffd700',
+  grid:    '#1e2d1e',
+};
+
+const ROW_H = 40;
+const PAD_TOP = 8;
+const PAD_BTM = 8;
+const SIG_H = ROW_H - PAD_TOP - PAD_BTM;   // usable waveform height
+
+/**
+ * Render the timeline ruler.
+ */
+function renderTimeline(timeRange, container) {
+  const totalTime = timeRange[1] - timeRange[0] || 60;
+  const W = container.clientWidth || 600;
+  const canvas = document.createElement('canvas');
+  canvas.width  = W * window.devicePixelRatio;
+  canvas.height = 30 * window.devicePixelRatio;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = '30px';
+  container.innerHTML = '';
+  container.appendChild(canvas);
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+  ctx.fillStyle = '#0f1510';
+  ctx.fillRect(0, 0, W, 30);
+
+  const steps = 7;
+  for (let i = 0; i <= steps; i++) {
+    const t  = timeRange[0] + (totalTime * i / steps);
+    const x  = (i / steps) * W;
+    ctx.strokeStyle = COLORS.grid;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, 20);
+    ctx.lineTo(x, 30);
+    ctx.stroke();
+
+    ctx.fillStyle = '#5a7a5a';
+    ctx.font = `${9 * window.devicePixelRatio}px 'Share Tech Mono', monospace`;
+    ctx.fillText(`${Math.round(t)}ns`, x + 2, 14);
+  }
+}
+
+/**
+ * Map a time value to an x-pixel within a canvas width.
+ */
+function timeToX(t, timeRange, W) {
+  const span = timeRange[1] - timeRange[0] || 1;
+  return ((t - timeRange[0]) / span) * W;
+}
+
+/**
+ * Render a single signal waveform on a canvas.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {Array} transitions - [{time, value}]
+ * @param {Array} expected    - [{time, value}] or null
+ * @param {Array} errorTimes  - times where a mismatch was found
+ * @param {Array} timeRange   - [minT, maxT]
+ * @param {number} W          - canvas logical width
+ */
+function renderSignal(ctx, transitions, expected, errorTimes, timeRange, W) {
+  const H = ROW_H;
+
+  // Background
+  ctx.fillStyle = '#0f1510';
+  ctx.fillRect(0, 0, W, H);
+
+  // Vertical grid at each truth-table time
+  const ttTimes = Object.keys(TRUTH_TABLE).map(Number);
+  ttTimes.forEach(t => {
+    const x = timeToX(t, timeRange, W);
+    ctx.strokeStyle = COLORS.grid;
+    ctx.lineWidth = 0.5;
+    ctx.setLineDash([2, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, H);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // Highlight error time bands
+  errorTimes.forEach(t => {
+    const x = timeToX(t, timeRange, W);
+    ctx.fillStyle = 'rgba(255,57,57,0.08)';
+    ctx.fillRect(x - 2, 0, 20, H);
+    // Error triangle marker
+    ctx.fillStyle = COLORS.error;
+    ctx.beginPath();
+    ctx.moveTo(x + 2, 2);
+    ctx.lineTo(x + 8, 2);
+    ctx.lineTo(x + 5, 7);
+    ctx.closePath();
+    ctx.fill();
+  });
+
+  // Draw expected signal (dashed yellow, thin)
+  if (expected && expected.length > 0) {
+    ctx.strokeStyle = COLORS.expected;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+
+    let prevX = 0, prevVal = expected[0].value;
+    expected.forEach(({ time, value }, idx) => {
+      const x   = timeToX(time, timeRange, W);
+      const yHi = PAD_TOP;
+      const yLo = H - PAD_BTM;
+      const y   = value === '1' ? yHi : (value === '0' ? yLo : (yHi + yLo) / 2);
+
+      if (idx === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        const prevY = prevVal === '1' ? yHi : (prevVal === '0' ? yLo : (yHi + yLo) / 2);
+        ctx.lineTo(x, prevY);
+        ctx.lineTo(x, y);
+      }
+      prevVal = value;
+      prevX   = x;
+    });
+    ctx.lineTo(W, prevVal === '1' ? PAD_TOP : H - PAD_BTM);
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+  }
+
+  // Draw actual waveform (solid green)
+  if (transitions && transitions.length > 0) {
+    ctx.strokeStyle = COLORS.correct;
+    ctx.lineWidth   = 2;
+    ctx.shadowColor = COLORS.correct;
+    ctx.shadowBlur  = 4;
+    ctx.beginPath();
+
+    const yHi = PAD_TOP;
+    const yLo = H - PAD_BTM;
+    let prevVal = transitions[0].value;
+    let prevX   = timeToX(transitions[0].time, timeRange, W);
+
+    ctx.moveTo(prevX, prevVal === '1' ? yHi : yLo);
+
+    transitions.forEach(({ time, value }, idx) => {
+      if (idx === 0) return;
+      const x  = timeToX(time, timeRange, W);
+      const y  = value === '1' ? yHi : yLo;
+      const py = prevVal === '1' ? yHi : yLo;
+
+      ctx.lineTo(x, py);     // horizontal segment
+      ctx.lineTo(x, y);      // vertical edge
+      prevVal = value;
+      prevX   = x;
+    });
+
+    // Extend to end
+    ctx.lineTo(W, prevVal === '1' ? yHi : yLo);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  } else {
+    ctx.fillStyle = '#5a7a5a';
+    ctx.font = '10px Share Tech Mono';
+    ctx.fillText('NO DATA', 8, H / 2 + 3);
+  }
+}
+
+/**
+ * Main render function: builds signal rows and canvases.
+ */
+function renderWaveform(visData, errors) {
+  const { timescale, signals, expected, time_range: timeRange } = visData;
+
+  // Build a set of error times per signal
+  const errorMap = {};  // sigName → [times]
+  errors.forEach(({ signal, time }) => {
+    if (!errorMap[signal]) errorMap[signal] = [];
+    errorMap[signal].push(time);
+  });
+
+  // Render timeline ruler
+  const timelineEl = document.getElementById('timelineHeader');
+  renderTimeline(timeRange, timelineEl);
+
+  // Build signal rows
+  signalRows.innerHTML = '';
+  const sigNames = Object.keys(signals);
+  if (!sigNames.length) { signalRows.innerHTML = '<div style="padding:20px;color:var(--text-dim)">No signals found in VCD</div>'; return; }
+
+  sigNames.forEach(sigName => {
+    const row = document.createElement('div');
+    row.className = 'signal-row';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'signal-name';
+
+    // Colour name if it has errors
+    if (errorMap[sigName]) {
+      nameEl.style.color = 'var(--red)';
+      nameEl.textContent = `${sigName} ✗`;
+    } else {
+      nameEl.textContent = sigName;
+    }
+
+    const canvasWrap = document.createElement('div');
+    canvasWrap.className = 'signal-canvas-wrap';
+
+    const canvas = document.createElement('canvas');
+    const W = canvasWrap.clientWidth || 700;
+    canvas.width  = W * window.devicePixelRatio;
+    canvas.height = ROW_H * window.devicePixelRatio;
+    canvas.style.width  = '100%';
+    canvas.style.height = ROW_H + 'px';
+    canvasWrap.appendChild(canvas);
+
+    row.appendChild(nameEl);
+    row.appendChild(canvasWrap);
+    signalRows.appendChild(row);
+
+    // Draw after append so clientWidth is available
+    requestAnimationFrame(() => {
+      const finalW = canvasWrap.clientWidth || 700;
+      canvas.width  = finalW * window.devicePixelRatio;
+      canvas.height = ROW_H  * window.devicePixelRatio;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      renderSignal(
+        ctx,
+        signals[sigName],
+        expected[sigName] || null,
+        errorMap[sigName] || [],
+        timeRange,
+        finalW
+      );
+    });
+  });
+}
+
+
+// ═══════════════════════════════════════════════════════
+// SECTION E: UI UPDATES
+// ═══════════════════════════════════════════════════════
+
+function log(msg, type = 'info') {
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  const now = new Date();
+  const ts = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+  line.innerHTML = `<span class="log-time">[${ts}]</span><span class="log-msg ${type}">${msg}</span>`;
+  logPanel.appendChild(line);
+  logPanel.scrollTop = logPanel.scrollHeight;
+}
+
+function showLoading(msg = 'Processing...') {
+  loadingText.textContent = msg;
+  loadingOverlay.classList.add('active');
+}
+
+function hideLoading() {
+  loadingOverlay.classList.remove('active');
+}
+
+function updateVerdict(result) {
+  const { verdict, errors, checked } = result;
+
+  verdictBox.className = 'verdict-box ' + (verdict === 'Correct' ? 'correct' : 'incorrect');
+  verdictValue.textContent = verdict.toUpperCase();
+  statsRow.style.display = 'grid';
+  statChecks.textContent  = checked || result.checked_points || '—';
+  statErrors.textContent  = errors.length;
+
+  // Error list
+  if (errors.length === 0) {
+    errorList.innerHTML = '<span style="color:var(--green); font-size:11px">✓ All checks passed.</span>';
+  } else {
+    errorList.innerHTML = errors.map(e => `
+      <div class="error-item">
+        <span class="error-time">t=${e.time}ns</span> ·
+        <span class="error-sig">${e.signal}</span>:
+        exp=<span class="error-val">'${e.expected}'</span>
+        got=<span class="error-val">'${e.actual}'</span>
+      </div>
+    `).join('');
+  }
+
+  // LED
+  document.getElementById('waveformLed').className =
+    'led ' + (verdict === 'Correct' ? 'active' : 'error');
+}
+
+function updateToolbar(visData) {
+  toolbarTimescale.textContent = visData.timescale || '1ns';
+  toolbarSignals.textContent   = Object.keys(visData.signals).length;
+  toolbarRange.textContent     = `${visData.time_range[0]}ns – ${visData.time_range[1]}ns`;
+}
+
+/**
+ * Build truth table display in sidebar.
+ */
+function buildTruthTable() {
+  const table = document.getElementById('truthTable');
+  const headers = ['t(ns)', 'clk', 'd', 'q'];
+  table.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
+
+  for (const [t, sigs] of Object.entries(TRUTH_TABLE)) {
+    const row = document.createElement('tr');
+    row.innerHTML = `<td>${t}</td>` +
+      headers.slice(1).map(s => {
+        const v = sigs[s] || '—';
+        return `<td class="val-${v}">${v}</td>`;
+      }).join('');
+    table.appendChild(row);
+  }
+}
+
+function showWaveformView() {
+  emptyState.style.display = 'none';
+  waveformContainer.style.display = 'block';
+}
+
+
+// ═══════════════════════════════════════════════════════
+// SECTION F: BACKEND COMMUNICATION
+// ═══════════════════════════════════════════════════════
+
+async function pingBackend() {
+  try {
+    const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(2000) });
+    if (res.ok) {
+      state.useBackend = true;
+      backendLed.className = 'led active';
+      backendStatus.textContent = 'Backend ✓';
+      log('Connected to backend at ' + API_BASE, 'ok');
+    }
+  } catch {
+    state.useBackend = false;
+    backendLed.className = 'led';
+    backendStatus.textContent = 'Offline (local)';
+    log('Backend unavailable — using in-browser parser', 'warn');
+  }
+}
+
+async function uploadToBackend(file) {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: form });
+  if (!res.ok) throw new Error(`Backend returned ${res.status}`);
+  return await res.json();
+}
+
+async function fetchVisFromBackend() {
+  const res = await fetch(`${API_BASE}/visualize`);
+  if (!res.ok) throw new Error('Visualize endpoint failed');
+  return await res.json();
+}
+
+
+// ═══════════════════════════════════════════════════════
+// SECTION G: MAIN FLOW
+// ═══════════════════════════════════════════════════════
+
+async function processVCDText(text, filename) {
+  showLoading('Parsing waveform...');
+  log(`Parsing: ${filename}`, 'info');
+
+  let verifyResult, visData;
+
+  if (state.useBackend) {
+    // ─ Backend path
+    try {
+      const blob = new Blob([text], { type: 'text/plain' });
+      const f = new File([blob], filename);
+      showLoading('Sending to backend...');
+      verifyResult = await uploadToBackend(f);
+      log(`Backend verdict: ${verifyResult.verdict}`, verifyResult.verdict === 'Correct' ? 'ok' : 'error');
+
+      showLoading('Fetching visualization data...');
+      visData = await fetchVisFromBackend();
+    } catch (err) {
+      log('Backend error: ' + err.message + ' — falling back to local parser', 'warn');
+      state.useBackend = false;
+    }
+  }
+
+  if (!state.useBackend || !verifyResult) {
+    // ─ Local (in-browser) path
+    const parsed = parseVCD(text);
+    const check  = checkWaveform(parsed);
+    verifyResult = {
+      verdict: check.verdict,
+      errors:  check.errors,
+      checked: check.checked,
+      summary: {
+        signals_found: Object.keys(parsed.signals),
+        timescale:     parsed.timescale,
+      }
+    };
+    visData = buildVisData(parsed);
+    log(`Local parse complete. Signals: ${Object.keys(parsed.signals).join(', ')}`, 'info');
+    log(`Verdict: ${check.verdict} (${check.errors.length} error(s) in ${check.checked} checks)`,
+        check.verdict === 'Correct' ? 'ok' : 'error');
+  }
+
+  state.verifyResult = verifyResult;
+  state.waveformData = visData;
+
+  // Update UI
+  updateVerdict({
+    verdict:  verifyResult.verdict,
+    errors:   verifyResult.errors,
+    checked:  verifyResult.checked || verifyResult.summary?.checked_points,
+  });
+  updateToolbar(visData);
+  showWaveformView();
+  renderWaveform(visData, verifyResult.errors);
+
+  hideLoading();
+}
+
+async function handleFile(file) {
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith('.vcd')) {
+    log('Error: Only .vcd files are accepted', 'error');
+    return;
+  }
+  fileName.textContent = file.name;
+  uploadBtn.disabled = false;
+  state.file = file;
+
+  const text = await file.text();
+  await processVCDText(text, file.name);
+}
+
+async function handleDemoLoad(withError) {
+  const label = withError ? 'demo_error.vcd' : 'demo_correct.vcd';
+  fileName.textContent = label;
+  uploadBtn.disabled = true;
+
+  log(`Loading ${label}...`, 'info');
+  const vcdText = makeDemoVCD(withError);
+  await processVCDText(vcdText, label);
+}
+
+
+// ═══════════════════════════════════════════════════════
+// SECTION H: EVENT LISTENERS
+// ═══════════════════════════════════════════════════════
+
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) handleFile(e.target.files[0]);
+});
+
+uploadBtn.addEventListener('click', () => {
+  if (state.file) handleFile(state.file);
+});
+
+loadDemoBtn.addEventListener('click', () => handleDemoLoad(false));
+loadDemoErrBtn.addEventListener('click', () => handleDemoLoad(true));
+
+// Drag & drop
+uploadZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  uploadZone.classList.add('drag-over');
+});
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+
+// Rerender on resize
+window.addEventListener('resize', () => {
+  if (state.waveformData && state.verifyResult) {
+    renderWaveform(state.waveformData, state.verifyResult.errors || []);
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════
+// SECTION I: INIT
+// ═══════════════════════════════════════════════════════
+
+(async function init() {
+  buildTruthTable();
+  log('WaveVerify initialized. Ready for VCD input.', 'ok');
+  await pingBackend();
+})();
+</script>
+</body>
+</html>
