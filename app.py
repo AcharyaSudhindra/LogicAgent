@@ -1,8 +1,15 @@
-﻿from typing import Dict, Any, Tuple
+﻿import json
+from typing import Dict, Any, Tuple
 from flask import Flask, request, jsonify, send_from_directory
 
 from backend.config import MAX_UPLOAD_BYTES, DEFAULT_TIMESCALE
-from backend import parse_vcd_text, verify_logic_function, build_visualization_json, get_supported_checkers
+from backend import (
+    parse_vcd_text,
+    verify_waveform,
+    build_visualization_json,
+    get_supported_checkers,
+    get_checker_definitions,
+)
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
@@ -38,6 +45,28 @@ def get_checker_from_request() -> str:
     return checker.upper().strip()
 
 
+def parse_signal_map_from_request() -> Dict[str, str]:
+    signal_map: Dict[str, str] = {}
+
+    map_json = request.form.get("signal_map") or request.args.get("signal_map")
+    if map_json:
+        try:
+            parsed = json.loads(map_json)
+            if isinstance(parsed, dict):
+                for k, v in parsed.items():
+                    if isinstance(v, str) and v.strip():
+                        signal_map[k.strip().lower()] = v.strip()
+        except json.JSONDecodeError:
+            pass
+
+    for key in ["a", "b", "y", "clk", "d", "q", "rst"]:
+        val = request.form.get(f"map_{key}") or request.args.get(f"map_{key}")
+        if val and val.strip():
+            signal_map[key] = val.strip()
+
+    return signal_map
+
+
 @app.route("/", methods=["GET"])
 def home():
     return send_from_directory(".", "index.html")
@@ -45,8 +74,11 @@ def home():
 
 @app.route("/checkers", methods=["GET"])
 def checkers():
-    supported = get_supported_checkers()
-    return jsonify({"default": "AND", "supported": supported})
+    return jsonify({
+        "default": "AND",
+        "supported": get_supported_checkers(),
+        "definitions": get_checker_definitions(),
+    })
 
 
 @app.route("/upload", methods=["POST", "OPTIONS"])
@@ -60,8 +92,9 @@ def upload_vcd():
         return jsonify({"error": str(e)}), 400
 
     checker = get_checker_from_request()
+    signal_map = parse_signal_map_from_request()
     parsed = parse_vcd_text(vcd_text, default_timescale=DEFAULT_TIMESCALE)
-    verify_result = verify_logic_function(parsed, checker=checker)
+    verify_result = verify_waveform(parsed, checker=checker, signal_map=signal_map)
 
     LAST_PARSED["filename"] = filename
     LAST_PARSED["parsed"] = parsed
@@ -75,6 +108,8 @@ def upload_vcd():
         "errors": verify_result["errors"],
         "summary": verify_result["summary"],
         "checker": verify_result["checker"],
+        "requested_checker": checker,
+        "signal_map": signal_map,
         "supported_checkers": get_supported_checkers(),
     })
 

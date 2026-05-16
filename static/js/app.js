@@ -25,7 +25,8 @@ $enddefinitions $end
 #60
 0#`;
 
-const LOCAL_SUPPORTED_CHECKERS = ["AND", "OR", "XOR", "NAND", "NOR", "XNOR"];
+const LOCAL_SUPPORTED_CHECKERS = ["AND", "OR", "XOR", "NAND", "NOR", "XNOR", "DFF"];
+let checkerDefinitions = {};
 let currentText = "";
 
 function appendTransition(transitions, signal, time, value) {
@@ -99,7 +100,7 @@ function valueAt(arr, t) {
   return value;
 }
 
-function expectedForChecker(a, b, checker) {
+function expectedLogic(a, b, checker) {
   if (!(a === "0" || a === "1") || !(b === "0" || b === "1")) return "x";
   switch (checker) {
     case "AND": return (a === "1" && b === "1") ? "1" : "0";
@@ -108,42 +109,104 @@ function expectedForChecker(a, b, checker) {
     case "NAND": return (a === "1" && b === "1") ? "0" : "1";
     case "NOR": return (a === "1" || b === "1") ? "0" : "1";
     case "XNOR": return (a !== b) ? "0" : "1";
-    default: return (a === "1" && b === "1") ? "1" : "0";
+    default: return "x";
   }
 }
 
-function localCheck(parsed, checker) {
+function getSignalMapFromInputs() {
+  const keys = ["a", "b", "y", "clk", "d", "q", "rst"];
+  const out = {};
+  for (const k of keys) {
+    const val = document.getElementById(`map_${k}`)?.value?.trim();
+    if (val) out[k] = val;
+  }
+  return out;
+}
+
+function localCheck(parsed, checker, signalMap) {
   const transitions = parsed.transitions;
   const timescale = parsed.timescale || "1ns";
   const errors = [];
-  const required = ["a", "b", "y"];
 
-  for (const sig of required) {
-    if (!transitions[sig] || transitions[sig].length === 0) {
-      errors.push({ message: `Missing required signal '${sig}'.`, signal: sig, time: null });
+  const resolve = (name) => {
+    const hint = signalMap[name];
+    if (hint && transitions[hint]) return hint;
+    return transitions[name] ? name : null;
+  };
+
+  if (checker === "DFF") {
+    const clk = resolve("clk");
+    const d = resolve("d");
+    const q = resolve("q");
+    const rst = resolve("rst");
+
+    if (!clk || !d || !q) {
+      if (!clk) errors.push({ message: "Missing clk signal for DFF check", signal: "clk" });
+      if (!d) errors.push({ message: "Missing d signal for DFF check", signal: "d" });
+      if (!q) errors.push({ message: "Missing q signal for DFF check", signal: "q" });
+      return { verdict: "Incorrect", errors, summary: { checked_edges: 0 } };
     }
+
+    const clkTr = transitions[clk];
+    const dTr = transitions[d];
+    const qTr = transitions[q];
+    const rstTr = rst ? transitions[rst] : null;
+
+    let checkedEdges = 0;
+    const allowed = new Set();
+
+    for (let i = 1; i < clkTr.length; i++) {
+      const p = clkTr[i - 1].value;
+      const c = clkTr[i].value;
+      if (p === "0" && c === "1") {
+        const t = clkTr[i].time;
+        allowed.add(t);
+        const dVal = valueAt(dTr, t);
+        const qVal = valueAt(qTr, t);
+        const rstVal = rstTr ? valueAt(rstTr, t) : "0";
+        const expected = rstVal === "1" ? "0" : dVal;
+        if (expected === "0" || expected === "1") {
+          checkedEdges += 1;
+          if (qVal !== expected) {
+            errors.push({ message: `DFF mismatch at t=${t}${timescale.replace("1", "")}: expected q=${expected}, got q=${qVal}.`, signal: "q", time: t });
+          }
+        }
+      }
+    }
+
+    for (let i = 1; i < qTr.length; i++) {
+      const t = qTr[i].time;
+      if (!allowed.has(t)) {
+        errors.push({ message: `Timing violation: q changed outside posedge at t=${t}${timescale.replace("1", "")}.`, signal: "q", time: t });
+      }
+    }
+
+    return { verdict: errors.length ? "Incorrect" : "Correct", errors, summary: { checked_edges: checkedEdges } };
   }
-  if (errors.length) return { verdict: "Incorrect", errors, summary: { checked_timestamps: 0 } };
+
+  const a = resolve("a");
+  const b = resolve("b");
+  const y = resolve("y");
+
+  if (!a || !b || !y) {
+    if (!a) errors.push({ message: "Missing a signal", signal: "a" });
+    if (!b) errors.push({ message: "Missing b signal", signal: "b" });
+    if (!y) errors.push({ message: "Missing y signal", signal: "y" });
+    return { verdict: "Incorrect", errors, summary: { checked_timestamps: 0 } };
+  }
 
   const timeSet = new Set([0]);
-  required.forEach(sig => transitions[sig].forEach(tr => timeSet.add(tr.time)));
-  const times = [...timeSet].sort((a, b) => a - b);
+  [a, b, y].forEach(sig => transitions[sig].forEach(tr => timeSet.add(tr.time)));
+  const times = [...timeSet].sort((x, y2) => x - y2);
 
   let checked = 0;
   for (const t of times) {
-    const a = valueAt(transitions.a, t);
-    const b = valueAt(transitions.b, t);
-    const y = valueAt(transitions.y, t);
-    const expected = expectedForChecker(a, b, checker);
-
+    const expected = expectedLogic(valueAt(transitions[a], t), valueAt(transitions[b], t), checker);
     if (expected === "0" || expected === "1") {
       checked += 1;
-      if (y !== expected) {
-        errors.push({
-          message: `Signal mismatch at t=${t}${timescale.replace("1", "")}: expected y=${expected}, got y=${y}.`,
-          signal: "y",
-          time: t
-        });
+      const actual = valueAt(transitions[y], t);
+      if (actual !== expected) {
+        errors.push({ message: `Signal mismatch at t=${t}${timescale.replace("1", "")}: expected y=${expected}, got y=${actual}.`, signal: "y", time: t });
       }
     }
   }
@@ -163,9 +226,9 @@ function renderWaveform(parsed, errors = []) {
 
   const transitions = parsed.transitions || {};
   const allSignals = Object.keys(transitions);
-  if (allSignals.length === 0) return;
+  if (!allSignals.length) return;
 
-  const preferred = ["clk", "a", "b", "y"];
+  const preferred = ["clk", "d", "q", "a", "b", "y", "rst"];
   const signals = preferred.filter(s => allSignals.includes(s)).concat(allSignals.filter(s => !preferred.includes(s)));
 
   let maxTime = 1;
@@ -177,7 +240,7 @@ function renderWaveform(parsed, errors = []) {
   const width = 1100;
   const rowH = 56;
   const top = 28;
-  const left = 120;
+  const left = 150;
   const right = 30;
   const height = top + rowH * signals.length + 28;
   svg.setAttribute("width", width);
@@ -260,9 +323,11 @@ function showResult(data) {
     });
   }
 
-  const checked = data.summary?.checked_timestamps ?? 0;
+  const checked = data.summary?.checked_timestamps ?? data.summary?.checked_edges ?? 0;
   const signalCount = data.signals_found?.length ?? Object.keys(data.signals || {}).length ?? 0;
-  metrics.innerHTML = `<span>Checker: ${data.checker || "LOCAL"}</span><span>Errors: ${errors.length}</span><span>Checked points: ${checked}</span><span>Signals: ${signalCount}</span>`;
+  const resolved = data.summary?.resolved_signals ? JSON.stringify(data.summary.resolved_signals) : "{}";
+
+  metrics.innerHTML = `<span>Checker: ${data.checker || "LOCAL"}</span><span>Errors: ${errors.length}</span><span>Checked points/edges: ${checked}</span><span>Signals: ${signalCount}</span><span>Resolved: ${resolved}</span>`;
 }
 
 function selectedChecker() {
@@ -282,25 +347,29 @@ async function loadCheckers() {
       if (Array.isArray(data.supported) && data.supported.length) {
         checkers = data.supported;
       }
+      checkerDefinitions = data.definitions || {};
     }
   } catch (_) {
-    // Backend not reachable; fallback to local list.
+    checkerDefinitions = {};
   }
 
   checkers.forEach(name => {
     const opt = document.createElement("option");
     opt.value = name;
-    opt.textContent = `${name} Truth Table`;
+    const desc = checkerDefinitions[name]?.description;
+    opt.textContent = desc ? `${name} - ${desc}` : `${name} checker`;
     checkerSelect.appendChild(opt);
   });
 
   checkerSelect.value = "AND";
 }
 
-async function runBackend(file, checker) {
+async function runBackend(file, checker, signalMap) {
   const uploadForm = new FormData();
   uploadForm.append("file", file);
   uploadForm.append("checker", checker);
+  uploadForm.append("signal_map", JSON.stringify(signalMap));
+  Object.entries(signalMap).forEach(([k, v]) => uploadForm.append(`map_${k}`, v));
 
   const uploadRes = await fetch(`${API_BASE}/upload`, { method: "POST", body: uploadForm });
   const uploadData = await uploadRes.json();
@@ -318,9 +387,10 @@ async function runBackend(file, checker) {
 
 function runLocal() {
   const checker = selectedChecker();
+  const signalMap = getSignalMapFromInputs();
   const parsed = parseVCD(currentText);
-  const result = localCheck(parsed, checker);
-  showResult({ ...result, checker: `LOCAL_${checker}_TRUTH_TABLE`, signals: parsed.transitions });
+  const result = localCheck(parsed, checker, signalMap);
+  showResult({ ...result, checker: `LOCAL_${checker}`, signals: parsed.transitions });
   renderWaveform(parsed, result.errors || []);
 }
 
@@ -345,6 +415,13 @@ async function init() {
     runLocal();
   });
 
+  for (const k of ["a", "b", "y", "clk", "d", "q", "rst"]) {
+    document.getElementById(`map_${k}`)?.addEventListener("input", () => {
+      if (!currentText.trim()) return;
+      runLocal();
+    });
+  }
+
   document.getElementById("loadSampleBtn").addEventListener("click", () => {
     currentText = SAMPLE_VCD;
     runLocal();
@@ -359,7 +436,7 @@ async function init() {
     const file = fileInput.files?.[0];
     if (!file) return alert("Select a VCD file first.");
     try {
-      await runBackend(file, selectedChecker());
+      await runBackend(file, selectedChecker(), getSignalMapFromInputs());
     } catch (err) {
       showResult({ verdict: "Incorrect", errors: [{ message: err.message }], summary: { checked_timestamps: 0 } });
     }

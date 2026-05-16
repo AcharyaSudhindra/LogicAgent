@@ -8,7 +8,6 @@
   --ok: #16c47f;
   --bad: #ff5d73;
   --accent: #4f8cff;
-  --warn: #ffb020;
 }
 
 * { box-sizing: border-box; }
@@ -22,7 +21,7 @@ body {
 }
 
 .container {
-  width: min(1200px, 95vw);
+  width: min(1220px, 95vw);
   margin: 20px auto;
 }
 
@@ -35,16 +34,20 @@ body {
 }
 
 h1 { margin: 0 0 6px; font-size: 1.4rem; }
+h3 { margin: 0 0 8px; }
 .subtitle { color: var(--muted); margin: 0; }
+.subtitle.small { font-size: 0.9rem; margin-bottom: 10px; }
 
 .controls {
   display: grid;
-  grid-template-columns: 1.2fr repeat(4, auto);
+  grid-template-columns: 1.4fr 0.9fr repeat(3, auto);
   gap: 10px;
   align-items: center;
 }
 
-input[type="file"], select {
+input[type="file"],
+select,
+.mapping-grid input {
   background: #0f1829;
   color: var(--text);
   border: 1px solid var(--line);
@@ -64,6 +67,20 @@ button {
 
 button.secondary { background: #2a3c5f; }
 button:hover { filter: brightness(1.08); }
+
+.mapping-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.mapping-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
 
 #verdict { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
 .ok { color: var(--ok); }
@@ -105,6 +122,7 @@ pre {
   white-space: pre-wrap;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 980px) {
   .controls { grid-template-columns: 1fr 1fr; }
+  .mapping-grid { grid-template-columns: 1fr 1fr; }
 }

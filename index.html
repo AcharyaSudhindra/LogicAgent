@@ -10,17 +10,29 @@
   <div class="container">
     <section class="card">
       <h1>Waveform Verification Platform</h1>
-      <p class="subtitle">Modular VCD parser + rule-based verifier + visualization pipeline</p>
+      <p class="subtitle">Vivado-ready VCD verification with multi-checker engine and signal alias mapping</p>
     </section>
 
     <section class="card controls">
       <input id="fileInput" type="file" accept=".vcd" />
+      <select id="checkerSelect"></select>
       <button id="runLocalBtn" class="secondary">Run Local Verify</button>
       <button id="runBackendBtn">Run Backend Verify</button>
       <button id="loadSampleBtn" class="secondary">Load Sample</button>
-      <select id="checkerSelect" disabled>
-        <option>AND Truth Table (active)</option>
-      </select>
+    </section>
+
+    <section class="card">
+      <h3>Signal Mapping (optional, for Vivado hierarchy)</h3>
+      <p class="subtitle small">Map canonical names to VCD signal names. Example: <code>tb/dut/a</code>, <code>tb.dut.q</code>.</p>
+      <div class="mapping-grid">
+        <label>a <input id="map_a" placeholder="auto or exact signal for a" /></label>
+        <label>b <input id="map_b" placeholder="auto or exact signal for b" /></label>
+        <label>y <input id="map_y" placeholder="auto or exact signal for y" /></label>
+        <label>clk <input id="map_clk" placeholder="auto or exact signal for clk" /></label>
+        <label>d <input id="map_d" placeholder="auto or exact signal for d" /></label>
+        <label>q <input id="map_q" placeholder="auto or exact signal for q" /></label>
+        <label>rst <input id="map_rst" placeholder="optional reset signal" /></label>
+      </div>
     </section>
 
     <section class="card">
