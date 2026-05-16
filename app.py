@@ -2,7 +2,7 @@
 from flask import Flask, request, jsonify, send_from_directory
 
 from backend.config import MAX_UPLOAD_BYTES, DEFAULT_TIMESCALE
-from backend import parse_vcd_text, verify_and_truth, build_visualization_json
+from backend import parse_vcd_text, verify_logic_function, build_visualization_json, get_supported_checkers
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
@@ -33,9 +33,20 @@ def read_uploaded_vcd_file() -> Tuple[str, str]:
     return uploaded.filename, text
 
 
+def get_checker_from_request() -> str:
+    checker = request.form.get("checker") or request.args.get("checker") or "AND"
+    return checker.upper().strip()
+
+
 @app.route("/", methods=["GET"])
 def home():
     return send_from_directory(".", "index.html")
+
+
+@app.route("/checkers", methods=["GET"])
+def checkers():
+    supported = get_supported_checkers()
+    return jsonify({"default": "AND", "supported": supported})
 
 
 @app.route("/upload", methods=["POST", "OPTIONS"])
@@ -48,8 +59,9 @@ def upload_vcd():
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
+    checker = get_checker_from_request()
     parsed = parse_vcd_text(vcd_text, default_timescale=DEFAULT_TIMESCALE)
-    verify_result = verify_and_truth(parsed)
+    verify_result = verify_logic_function(parsed, checker=checker)
 
     LAST_PARSED["filename"] = filename
     LAST_PARSED["parsed"] = parsed
@@ -63,6 +75,7 @@ def upload_vcd():
         "errors": verify_result["errors"],
         "summary": verify_result["summary"],
         "checker": verify_result["checker"],
+        "supported_checkers": get_supported_checkers(),
     })
 
 
@@ -96,6 +109,7 @@ def health():
         "status": "ok",
         "max_upload_bytes": app.config["MAX_CONTENT_LENGTH"],
         "last_uploaded_file": LAST_PARSED["filename"],
+        "supported_checkers": get_supported_checkers(),
     })
 
 

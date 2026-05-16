@@ -25,6 +25,7 @@ $enddefinitions $end
 #60
 0#`;
 
+const LOCAL_SUPPORTED_CHECKERS = ["AND", "OR", "XOR", "NAND", "NOR", "XNOR"];
 let currentText = "";
 
 function appendTransition(transitions, signal, time, value) {
@@ -98,7 +99,20 @@ function valueAt(arr, t) {
   return value;
 }
 
-function localCheckAndRule(parsed) {
+function expectedForChecker(a, b, checker) {
+  if (!(a === "0" || a === "1") || !(b === "0" || b === "1")) return "x";
+  switch (checker) {
+    case "AND": return (a === "1" && b === "1") ? "1" : "0";
+    case "OR": return (a === "1" || b === "1") ? "1" : "0";
+    case "XOR": return (a !== b) ? "1" : "0";
+    case "NAND": return (a === "1" && b === "1") ? "0" : "1";
+    case "NOR": return (a === "1" || b === "1") ? "0" : "1";
+    case "XNOR": return (a !== b) ? "0" : "1";
+    default: return (a === "1" && b === "1") ? "1" : "0";
+  }
+}
+
+function localCheck(parsed, checker) {
   const transitions = parsed.transitions;
   const timescale = parsed.timescale || "1ns";
   const errors = [];
@@ -120,9 +134,10 @@ function localCheckAndRule(parsed) {
     const a = valueAt(transitions.a, t);
     const b = valueAt(transitions.b, t);
     const y = valueAt(transitions.y, t);
-    if ((a === "0" || a === "1") && (b === "0" || b === "1")) {
+    const expected = expectedForChecker(a, b, checker);
+
+    if (expected === "0" || expected === "1") {
       checked += 1;
-      const expected = (a === "1" && b === "1") ? "1" : "0";
       if (y !== expected) {
         errors.push({
           message: `Signal mismatch at t=${t}${timescale.replace("1", "")}: expected y=${expected}, got y=${y}.`,
@@ -247,12 +262,45 @@ function showResult(data) {
 
   const checked = data.summary?.checked_timestamps ?? 0;
   const signalCount = data.signals_found?.length ?? Object.keys(data.signals || {}).length ?? 0;
-  metrics.innerHTML = `<span>Checker: ${data.checker || "LOCAL_AND_RULE"}</span><span>Errors: ${errors.length}</span><span>Checked points: ${checked}</span><span>Signals: ${signalCount}</span>`;
+  metrics.innerHTML = `<span>Checker: ${data.checker || "LOCAL"}</span><span>Errors: ${errors.length}</span><span>Checked points: ${checked}</span><span>Signals: ${signalCount}</span>`;
 }
 
-async function runBackend(file) {
+function selectedChecker() {
+  const checkerSelect = document.getElementById("checkerSelect");
+  return (checkerSelect.value || "AND").toUpperCase();
+}
+
+async function loadCheckers() {
+  const checkerSelect = document.getElementById("checkerSelect");
+  checkerSelect.innerHTML = "";
+  let checkers = [...LOCAL_SUPPORTED_CHECKERS];
+
+  try {
+    const res = await fetch(`${API_BASE}/checkers`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.supported) && data.supported.length) {
+        checkers = data.supported;
+      }
+    }
+  } catch (_) {
+    // Backend not reachable; fallback to local list.
+  }
+
+  checkers.forEach(name => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = `${name} Truth Table`;
+    checkerSelect.appendChild(opt);
+  });
+
+  checkerSelect.value = "AND";
+}
+
+async function runBackend(file, checker) {
   const uploadForm = new FormData();
   uploadForm.append("file", file);
+  uploadForm.append("checker", checker);
 
   const uploadRes = await fetch(`${API_BASE}/upload`, { method: "POST", body: uploadForm });
   const uploadData = await uploadRes.json();
@@ -269,15 +317,18 @@ async function runBackend(file) {
 }
 
 function runLocal() {
+  const checker = selectedChecker();
   const parsed = parseVCD(currentText);
-  const result = localCheckAndRule(parsed);
-  showResult({ ...result, checker: "LOCAL_AND_RULE", signals: parsed.transitions });
+  const result = localCheck(parsed, checker);
+  showResult({ ...result, checker: `LOCAL_${checker}_TRUTH_TABLE`, signals: parsed.transitions });
   renderWaveform(parsed, result.errors || []);
 }
 
 async function init() {
   const fileInput = document.getElementById("fileInput");
   const sampleBox = document.getElementById("sampleBox");
+
+  await loadCheckers();
 
   sampleBox.textContent = SAMPLE_VCD;
   currentText = SAMPLE_VCD;
@@ -287,6 +338,11 @@ async function init() {
     const file = e.target.files?.[0];
     if (!file) return;
     currentText = await file.text();
+  });
+
+  document.getElementById("checkerSelect").addEventListener("change", () => {
+    if (!currentText.trim()) return;
+    runLocal();
   });
 
   document.getElementById("loadSampleBtn").addEventListener("click", () => {
@@ -303,7 +359,7 @@ async function init() {
     const file = fileInput.files?.[0];
     if (!file) return alert("Select a VCD file first.");
     try {
-      await runBackend(file);
+      await runBackend(file, selectedChecker());
     } catch (err) {
       showResult({ verdict: "Incorrect", errors: [{ message: err.message }], summary: { checked_timestamps: 0 } });
     }
