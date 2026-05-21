@@ -294,7 +294,7 @@ function renderWaveform(parsed, errors = []) {
 
     svg.appendChild(createSvgEl("line", {
       x1: left, y1: yLow, x2: width - right, y2: yLow,
-      stroke: "#2a3a58", "stroke-width": 1
+      stroke: "var(--line)", "stroke-width": 1
     }));
 
     const arr = transitions[sig] || [];
@@ -314,15 +314,17 @@ function renderWaveform(parsed, errors = []) {
 
       svg.appendChild(createSvgEl("line", {
         x1: xOf(t0), y1: y0, x2: xOf(t1), y2: y0,
-        stroke: sigErr ? "#ff5d73" : "#4f8cff",
-        "stroke-width": 2
+        stroke: sigErr ? "var(--svg-line-err)" : "var(--svg-line-ok)",
+        "stroke-width": 2,
+        class: "animated-waveform-line"
       }));
 
       if (y1 !== y0) {
         svg.appendChild(createSvgEl("line", {
           x1: xOf(t1), y1: y0, x2: xOf(t1), y2: y1,
-          stroke: sigErr ? "#ff5d73" : "#4f8cff",
-          "stroke-width": 2
+          stroke: sigErr ? "var(--svg-line-err)" : "var(--svg-line-ok)",
+          "stroke-width": 2,
+          class: "animated-waveform-line"
         }));
       }
     }
@@ -455,6 +457,26 @@ function runLocal() {
 async function init() {
   const fileInput = document.getElementById("fileInput");
   const sampleBox = document.getElementById("sampleBox");
+  const themeToggleBtn = document.getElementById("themeToggleBtn");
+
+  const savedTheme = localStorage.getItem("theme") || "dark";
+  if (savedTheme === "light") {
+    document.body.setAttribute("data-theme", "light");
+    themeToggleBtn.textContent = "☀";
+  }
+
+  themeToggleBtn.addEventListener("click", () => {
+    const isLight = document.body.getAttribute("data-theme") === "light";
+    if (isLight) {
+      document.body.removeAttribute("data-theme");
+      themeToggleBtn.textContent = "☾";
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.body.setAttribute("data-theme", "light");
+      themeToggleBtn.textContent = "☀";
+      localStorage.setItem("theme", "light");
+    }
+  });
 
   await loadCheckers();
 
