@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -24,14 +24,8 @@
     <section class="card">
       <h3>Signal Mapping (optional, for Vivado hierarchy)</h3>
       <p class="subtitle small">Map canonical names to VCD signal names. Example: <code>tb/dut/a</code>, <code>tb.dut.q</code>.</p>
-      <div class="mapping-grid">
-        <label>a <input id="map_a" placeholder="auto or exact signal for a" /></label>
-        <label>b <input id="map_b" placeholder="auto or exact signal for b" /></label>
-        <label>y <input id="map_y" placeholder="auto or exact signal for y" /></label>
-        <label>clk <input id="map_clk" placeholder="auto or exact signal for clk" /></label>
-        <label>d <input id="map_d" placeholder="auto or exact signal for d" /></label>
-        <label>q <input id="map_q" placeholder="auto or exact signal for q" /></label>
-        <label>rst <input id="map_rst" placeholder="optional reset signal" /></label>
+      <div class="mapping-grid" id="mappingGrid">
+        <!-- Populated dynamically based on selected checker -->
       </div>
     </section>
 

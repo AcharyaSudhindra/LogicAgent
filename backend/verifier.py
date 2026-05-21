@@ -1,23 +1,32 @@
-﻿from typing import Dict, List, Any, Callable, Optional, Tuple
+from typing import Dict, List, Any, Callable, Optional, Tuple
 import re
 
 
-LOGIC_CHECKERS: Dict[str, Callable[[str, str], str]] = {
-    "AND": lambda a, b: "1" if (a == "1" and b == "1") else "0",
-    "OR": lambda a, b: "1" if (a == "1" or b == "1") else "0",
-    "XOR": lambda a, b: "1" if (a != b) else "0",
-    "NAND": lambda a, b: "0" if (a == "1" and b == "1") else "1",
-    "NOR": lambda a, b: "0" if (a == "1" or b == "1") else "1",
-    "XNOR": lambda a, b: "0" if (a != b) else "1",
+LOGIC_CHECKERS: Dict[str, Callable[..., Dict[str, str]]] = {
+    "AND": lambda a, b: {"y": "1" if (a == "1" and b == "1") else "0"},
+    "OR": lambda a, b: {"y": "1" if (a == "1" or b == "1") else "0"},
+    "XOR": lambda a, b: {"y": "1" if (a != b) else "0"},
+    "NAND": lambda a, b: {"y": "0" if (a == "1" and b == "1") else "1"},
+    "NOR": lambda a, b: {"y": "0" if (a == "1" or b == "1") else "1"},
+    "XNOR": lambda a, b: {"y": "0" if (a != b) else "1"},
+    "HALF_ADDER": lambda a, b: {"sum": "1" if a != b else "0", "carry": "1" if (a == "1" and b == "1") else "0"},
+    "FULL_ADDER": lambda a, b, cin: {
+        "sum": "1" if ((1 if a=="1" else 0) + (1 if b=="1" else 0) + (1 if cin=="1" else 0)) % 2 != 0 else "0",
+        "cout": "1" if ((1 if a=="1" else 0) + (1 if b=="1" else 0) + (1 if cin=="1" else 0)) >= 2 else "0"
+    },
+    "MUX2": lambda d0, d1, sel: {"y": d1 if sel == "1" else (d0 if sel == "0" else "x")},
 }
 
 CHECKER_METADATA: Dict[str, Dict[str, Any]] = {
-    "AND": {"kind": "logic2", "required": ["a", "b", "y"], "description": "y = a AND b"},
-    "OR": {"kind": "logic2", "required": ["a", "b", "y"], "description": "y = a OR b"},
-    "XOR": {"kind": "logic2", "required": ["a", "b", "y"], "description": "y = a XOR b"},
-    "NAND": {"kind": "logic2", "required": ["a", "b", "y"], "description": "y = NOT(a AND b)"},
-    "NOR": {"kind": "logic2", "required": ["a", "b", "y"], "description": "y = NOT(a OR b)"},
-    "XNOR": {"kind": "logic2", "required": ["a", "b", "y"], "description": "y = NOT(a XOR b)"},
+    "AND": {"kind": "logic", "inputs": ["a", "b"], "outputs": ["y"], "required": ["a", "b", "y"], "description": "y = a AND b"},
+    "OR": {"kind": "logic", "inputs": ["a", "b"], "outputs": ["y"], "required": ["a", "b", "y"], "description": "y = a OR b"},
+    "XOR": {"kind": "logic", "inputs": ["a", "b"], "outputs": ["y"], "required": ["a", "b", "y"], "description": "y = a XOR b"},
+    "NAND": {"kind": "logic", "inputs": ["a", "b"], "outputs": ["y"], "required": ["a", "b", "y"], "description": "y = NOT(a AND b)"},
+    "NOR": {"kind": "logic", "inputs": ["a", "b"], "outputs": ["y"], "required": ["a", "b", "y"], "description": "y = NOT(a OR b)"},
+    "XNOR": {"kind": "logic", "inputs": ["a", "b"], "outputs": ["y"], "required": ["a", "b", "y"], "description": "y = NOT(a XOR b)"},
+    "HALF_ADDER": {"kind": "logic", "inputs": ["a", "b"], "outputs": ["sum", "carry"], "required": ["a", "b", "sum", "carry"], "description": "sum = a XOR b; carry = a AND b"},
+    "FULL_ADDER": {"kind": "logic", "inputs": ["a", "b", "cin"], "outputs": ["sum", "cout"], "required": ["a", "b", "cin", "sum", "cout"], "description": "1-bit full adder"},
+    "MUX2": {"kind": "logic", "inputs": ["d0", "d1", "sel"], "outputs": ["y"], "required": ["d0", "d1", "sel", "y"], "description": "y = d1 if sel else d0"},
     "DFF": {"kind": "sequential", "required": ["clk", "d", "q"], "optional": ["rst"], "description": "q captures d at clk rising edge; optional rst forces q=0"},
 }
 
@@ -137,12 +146,11 @@ def _resolve_required_signals(transitions: Dict[str, List[Dict[str, Any]]], requ
     return resolved, errors
 
 
-def _logic_expected(a: str, b: str, checker_name: str) -> str:
-    a_val = normalize_bit(a)
-    b_val = normalize_bit(b)
-    if a_val not in ("0", "1") or b_val not in ("0", "1"):
-        return "x"
-    return LOGIC_CHECKERS[checker_name](a_val, b_val)
+def _logic_expected(input_vals: Dict[str, str], checker_name: str, outputs: List[str]) -> Dict[str, str]:
+    normalized_inputs = {k: normalize_bit(v) for k, v in input_vals.items()}
+    if any(v not in ("0", "1") for v in normalized_inputs.values()):
+        return {out: "x" for out in outputs}
+    return LOGIC_CHECKERS[checker_name](**normalized_inputs)
 
 
 def verify_logic_function(parsed: Dict[str, Any], checker: str = "AND", signal_map: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
@@ -152,7 +160,10 @@ def verify_logic_function(parsed: Dict[str, Any], checker: str = "AND", signal_m
 
     transitions = parsed["transitions"]
     timescale = parsed["timescale"]
-    required = CHECKER_METADATA[checker_name]["required"]
+    meta = CHECKER_METADATA[checker_name]
+    required = meta["required"]
+    inputs = meta["inputs"]
+    outputs = meta["outputs"]
 
     resolved, errors = _resolve_required_signals(transitions, required, signal_map)
     if errors:
@@ -168,55 +179,62 @@ def verify_logic_function(parsed: Dict[str, Any], checker: str = "AND", signal_m
             }
         }
 
-    a_tr = transitions[resolved["a"]]
-    b_tr = transitions[resolved["b"]]
-    y_tr = transitions[resolved["y"]]
+    input_trs = {inp: transitions[resolved[inp]] for inp in inputs}
+    output_trs = {out: transitions[resolved[out]] for out in outputs}
 
     time_axis = {0}
-    for tr_list in (a_tr, b_tr, y_tr):
+    for tr_list in list(input_trs.values()) + list(output_trs.values()):
         for tr in tr_list:
             time_axis.add(tr["time"])
     sorted_times = sorted(time_axis)
 
-    expected_transition_times = {0}
+    expected_transition_times = {out: {0} for out in outputs}
     prev_expected = None
     compared_points = 0
 
     for t in sorted_times:
-        a_val = value_at_time(a_tr, t)
-        b_val = value_at_time(b_tr, t)
-        y_val = value_at_time(y_tr, t)
-        expected = _logic_expected(a_val, b_val, checker_name)
+        current_inputs = {inp: value_at_time(input_trs[inp], t) for inp in inputs}
+        current_outputs = {out: value_at_time(output_trs[out], t) for out in outputs}
+        
+        expected = _logic_expected(current_inputs, checker_name, outputs)
 
         if prev_expected is None:
             prev_expected = expected
         elif expected != prev_expected:
-            expected_transition_times.add(t)
+            for out in outputs:
+                if expected[out] != prev_expected[out]:
+                    expected_transition_times[out].add(t)
             prev_expected = expected
 
-        if expected in ("0", "1"):
+        if any(v in ("0", "1") for v in expected.values()):
             compared_points += 1
-            if y_val not in ("0", "1") or y_val != expected:
-                errors.append({
-                    "type": "mismatch",
-                    "signal": "y",
-                    "time": t,
-                    "expected": expected,
-                    "actual": y_val,
-                    "message": f"Signal mismatch at t={format_time(t, timescale)}: expected y={expected}, got y={y_val}."
-                })
+            for out in outputs:
+                exp_val = expected[out]
+                act_val = current_outputs[out]
+                if exp_val in ("0", "1"):
+                    if act_val not in ("0", "1") or act_val != exp_val:
+                        errors.append({
+                            "type": "mismatch",
+                            "signal": out,
+                            "time": t,
+                            "expected": exp_val,
+                            "actual": act_val,
+                            "message": f"Signal mismatch at t={format_time(t, timescale)}: expected {out}={exp_val}, got {out}={act_val}."
+                        })
 
-    for i in range(1, len(y_tr)):
-        t = y_tr[i]["time"]
-        if t not in expected_transition_times:
-            errors.append({
-                "type": "timing_violation",
-                "signal": "y",
-                "time": t,
-                "expected": "no_transition",
-                "actual": "transition",
-                "message": f"Timing violation: y changed unexpectedly at t={format_time(t, timescale)}."
-            })
+    for out in outputs:
+        y_tr = output_trs[out]
+        for i in range(1, len(y_tr)):
+            t = y_tr[i]["time"]
+            if t not in expected_transition_times[out]:
+                errors.append({
+                    "type": "timing_violation",
+                    "signal": out,
+                    "time": t,
+                    "expected": "no_transition",
+                    "actual": "transition",
+                    "message": f"Timing violation: {out} changed unexpectedly at t={format_time(t, timescale)}."
+                })
 
     verdict = "Correct" if not errors else "Incorrect"
     return {

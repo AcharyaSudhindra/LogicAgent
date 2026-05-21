@@ -1,4 +1,4 @@
-﻿const API_BASE = "http://127.0.0.1:5000";
+const API_BASE = "http://127.0.0.1:5000";
 
 const SAMPLE_VCD = `$timescale 1ns $end
 $scope module tb $end
@@ -114,13 +114,42 @@ function expectedLogic(a, b, checker) {
 }
 
 function getSignalMapFromInputs() {
-  const keys = ["a", "b", "y", "clk", "d", "q", "rst"];
   const out = {};
-  for (const k of keys) {
-    const val = document.getElementById(`map_${k}`)?.value?.trim();
+  const inputs = document.querySelectorAll("#mappingGrid input");
+  inputs.forEach(input => {
+    const k = input.id.replace("map_", "");
+    const val = input.value.trim();
     if (val) out[k] = val;
-  }
+  });
   return out;
+}
+
+function updateMappingGrid() {
+  const checker = selectedChecker();
+  const def = checkerDefinitions[checker] || {};
+  const req = def.required || [];
+  const opt = def.optional || [];
+  
+  const grid = document.getElementById("mappingGrid");
+  if (!grid) return;
+  grid.innerHTML = "";
+  
+  const allSignals = [...req, ...opt];
+  if (allSignals.length === 0) {
+    allSignals.push("a", "b", "y", "clk", "d", "q", "rst");
+  }
+  
+  allSignals.forEach(k => {
+    const isOpt = opt.includes(k);
+    const label = document.createElement("label");
+    label.innerHTML = `${k} <input id="map_${k}" placeholder="${isOpt ? 'optional' : 'auto'} signal for ${k}" />`;
+    grid.appendChild(label);
+    
+    label.querySelector("input").addEventListener("input", () => {
+      if (!currentText.trim()) return;
+      runLocal();
+    });
+  });
 }
 
 function localCheck(parsed, checker, signalMap) {
@@ -298,6 +327,34 @@ function renderWaveform(parsed, errors = []) {
       }
     }
   });
+
+  const catchArea = createSvgEl("rect", { x: 0, y: 0, width: width, height: height, fill: "transparent" });
+  svg.appendChild(catchArea);
+
+  const crosshairGroup = createSvgEl("g", { id: "crosshair", style: "display: none;" });
+  const crosshairLine = createSvgEl("line", { x1: 0, y1: 0, x2: 0, y2: height, stroke: "#4f8cff", "stroke-width": 1, "stroke-dasharray": "4 4" });
+  const crosshairText = createSvgEl("text", { x: 5, y: 15, fill: "#e5edf8", "font-size": 12, "font-weight": "bold" });
+  crosshairGroup.appendChild(crosshairLine);
+  crosshairGroup.appendChild(crosshairText);
+  svg.appendChild(crosshairGroup);
+
+  svg.addEventListener("mousemove", (e) => {
+    const rect = svg.getBoundingClientRect();
+    const ex = e.clientX - rect.left;
+    if (ex >= left && ex <= width - right) {
+      crosshairGroup.setAttribute("style", "display: block; pointer-events: none;");
+      crosshairLine.setAttribute("x1", ex);
+      crosshairLine.setAttribute("x2", ex);
+      const t = ((ex - left) / plotW) * maxTime;
+      crosshairText.setAttribute("x", ex + 5);
+      crosshairText.textContent = `t=${Math.round(t)}`;
+    } else {
+      crosshairGroup.setAttribute("style", "display: none;");
+    }
+  });
+  svg.addEventListener("mouseleave", () => {
+    crosshairGroup.setAttribute("style", "display: none;");
+  });
 }
 
 function showResult(data) {
@@ -362,6 +419,7 @@ async function loadCheckers() {
   });
 
   checkerSelect.value = "AND";
+  updateMappingGrid();
 }
 
 async function runBackend(file, checker, signalMap) {
@@ -411,16 +469,10 @@ async function init() {
   });
 
   document.getElementById("checkerSelect").addEventListener("change", () => {
+    updateMappingGrid();
     if (!currentText.trim()) return;
     runLocal();
   });
-
-  for (const k of ["a", "b", "y", "clk", "d", "q", "rst"]) {
-    document.getElementById(`map_${k}`)?.addEventListener("input", () => {
-      if (!currentText.trim()) return;
-      runLocal();
-    });
-  }
 
   document.getElementById("loadSampleBtn").addEventListener("click", () => {
     currentText = SAMPLE_VCD;
