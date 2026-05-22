@@ -398,12 +398,24 @@ function showResult(data) {
   const verdictEl = document.getElementById("verdict");
   const errorList = document.getElementById("errorList");
   const metrics = document.getElementById("metrics");
+  const explainBtn = document.getElementById("explainBtn");
+  const explanationBox = document.getElementById("explanationBox");
 
   verdictEl.textContent = `Verdict: ${data.verdict}`;
   verdictEl.className = data.verdict === "Correct" ? "ok" : "bad";
 
+  if (explanationBox) {
+    explanationBox.style.display = "none";
+    explanationBox.textContent = "";
+  }
+
   errorList.innerHTML = "";
   const errors = data.errors || [];
+  
+  if (explainBtn) {
+    explainBtn.style.display = errors.length > 0 ? "inline-block" : "none";
+  }
+
   if (!errors.length) {
     const li = document.createElement("li");
     li.textContent = "No mismatches found.";
@@ -582,6 +594,63 @@ async function init() {
       showResult({ verdict: "Incorrect", errors: [{ message: err.message }], summary: { checked_timestamps: 0 } });
     }
   });
+
+  const autoMapBtn = document.getElementById("autoMapBtn");
+  if (autoMapBtn) {
+    autoMapBtn.addEventListener("click", async () => {
+      if (!currentParsed || !currentParsed.transitions) {
+        return alert("Upload or load a VCD file first.");
+      }
+      const signals = Object.keys(currentParsed.transitions);
+      const checker = selectedChecker();
+      
+      autoMapBtn.textContent = "Mapping...";
+      try {
+        const res = await fetch(`${API_BASE}/smart/map_signals`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ signals, checker })
+        });
+        const data = await res.json();
+        if (data.mapping) {
+          Object.entries(data.mapping).forEach(([k, v]) => {
+            const input = document.getElementById(`map_${k}`);
+            if (input) input.value = v;
+          });
+          runLocal();
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Failed to auto map signals");
+      } finally {
+        autoMapBtn.textContent = "Auto Map (Smart)";
+      }
+    });
+  }
+
+  const explainBtn = document.getElementById("explainBtn");
+  if (explainBtn) {
+    explainBtn.addEventListener("click", async () => {
+      const explanationBox = document.getElementById("explanationBox");
+      
+      explainBtn.textContent = "Explaining...";
+      try {
+        const res = await fetch(`${API_BASE}/smart/explain_error`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ checker: selectedChecker(), errors: currentErrors })
+        });
+        const data = await res.json();
+        explanationBox.style.display = "block";
+        explanationBox.textContent = data.explanation || "No explanation available.";
+      } catch (err) {
+        console.error(err);
+        alert("Failed to fetch explanation");
+      } finally {
+        explainBtn.textContent = "Explain Error";
+      }
+    });
+  }
 }
 
 window.addEventListener("DOMContentLoaded", init);
