@@ -56,7 +56,7 @@ def suggest_signal_mapping(available_signals: List[str], checker: str) -> Dict[s
             for syn in req_synonyms:
                 seq = difflib.SequenceMatcher(None, base, syn)
                 ratio = seq.ratio()
-                if ratio > best_score and ratio > 0.6:  # Threshold for similarity
+                if ratio > best_score and ratio > 0.75:  # Threshold for similarity
                     best_score = ratio
                     best_match = sig
         
