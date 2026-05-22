@@ -116,6 +116,7 @@ def evaluate_assertion(parsed_vcd: Dict[str, Any], assertion_str: str, signal_ma
     verdict = "Correct" if not errors else "Incorrect"
     return {
         "verdict": verdict,
+        "error_count": len(errors),
         "errors": errors,
         "summary": {"checked_timestamps": checked_points},
         "checker": "ASSERTION"
