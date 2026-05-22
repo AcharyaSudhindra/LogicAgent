@@ -1,4 +1,4 @@
-﻿import json
+import json
 from typing import Dict, Any, Tuple
 from flask import Flask, request, jsonify, send_from_directory
 
@@ -10,6 +10,8 @@ from backend import (
     get_supported_checkers,
     get_checker_definitions,
 )
+
+from backend.smart_engine import suggest_signal_mapping, explain_verification_errors
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
@@ -136,6 +138,32 @@ def visualize_vcd():
     return jsonify({
         "error": "No waveform available. Upload a VCD to /upload or send a file to /visualize."
     }), 400
+
+
+@app.route("/smart/map_signals", methods=["POST", "OPTIONS"])
+def smart_map_signals():
+    if request.method == "OPTIONS":
+        return jsonify({"ok": True}), 200
+        
+    data = request.json or {}
+    signals = data.get("signals", [])
+    checker = data.get("checker", "AND").upper()
+    
+    mapping = suggest_signal_mapping(signals, checker)
+    return jsonify({"mapping": mapping})
+
+
+@app.route("/smart/explain_error", methods=["POST", "OPTIONS"])
+def smart_explain_error():
+    if request.method == "OPTIONS":
+        return jsonify({"ok": True}), 200
+        
+    data = request.json or {}
+    checker = data.get("checker", "UNKNOWN")
+    errors = data.get("errors", [])
+    
+    explanation = explain_verification_errors(checker, errors)
+    return jsonify({"explanation": explanation})
 
 
 @app.route("/health", methods=["GET"])

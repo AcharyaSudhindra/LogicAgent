@@ -25,9 +25,15 @@ $enddefinitions $end
 #60
 0#`;
 
-const LOCAL_SUPPORTED_CHECKERS = ["AND", "OR", "XOR", "NAND", "NOR", "XNOR", "DFF"];
+const LOCAL_SUPPORTED_CHECKERS = ["AND", "OR", "XOR", "NAND", "NOR", "XNOR", "DFF", "T_FF", "JK_FF"];
 let checkerDefinitions = {};
 let currentText = "";
+let currentParsed = null;
+let currentErrors = [];
+let timeScale = 1.0;
+let timeOffset = 0;
+let isPanning = false;
+let startPanX = 0;
 
 function appendTransition(transitions, signal, time, value) {
   if (!transitions[signal]) transitions[signal] = [];
@@ -163,21 +169,25 @@ function localCheck(parsed, checker, signalMap) {
     return transitions[name] ? name : null;
   };
 
-  if (checker === "DFF") {
+  if (["DFF", "T_FF", "JK_FF"].includes(checker)) {
     const clk = resolve("clk");
-    const d = resolve("d");
     const q = resolve("q");
     const rst = resolve("rst");
 
-    if (!clk || !d || !q) {
-      if (!clk) errors.push({ message: "Missing clk signal for DFF check", signal: "clk" });
-      if (!d) errors.push({ message: "Missing d signal for DFF check", signal: "d" });
-      if (!q) errors.push({ message: "Missing q signal for DFF check", signal: "q" });
+    const reqs = { DFF: ["d"], T_FF: ["t"], JK_FF: ["j", "k"] }[checker];
+    const inputs = {};
+    for (const r of reqs) {
+      inputs[r] = resolve(r);
+      if (!inputs[r]) errors.push({ message: `Missing ${r} signal for ${checker} check`, signal: r });
+    }
+
+    if (!clk || !q || errors.length > 0) {
+      if (!clk) errors.push({ message: `Missing clk signal for ${checker} check`, signal: "clk" });
+      if (!q) errors.push({ message: `Missing q signal for ${checker} check`, signal: "q" });
       return { verdict: "Incorrect", errors, summary: { checked_edges: 0 } };
     }
 
     const clkTr = transitions[clk];
-    const dTr = transitions[d];
     const qTr = transitions[q];
     const rstTr = rst ? transitions[rst] : null;
 
@@ -190,14 +200,35 @@ function localCheck(parsed, checker, signalMap) {
       if (p === "0" && c === "1") {
         const t = clkTr[i].time;
         allowed.add(t);
-        const dVal = valueAt(dTr, t);
-        const qVal = valueAt(qTr, t);
+        const qValBefore = valueAt(qTr, t - 1);
+        
         const rstVal = rstTr ? valueAt(rstTr, t) : "0";
-        const expected = rstVal === "1" ? "0" : dVal;
+        let expected = "x";
+        
+        if (rstVal === "1") {
+          expected = "0";
+        } else {
+          if (checker === "DFF") {
+            expected = valueAt(transitions[inputs["d"]], t);
+          } else if (checker === "T_FF") {
+            const tVal = valueAt(transitions[inputs["t"]], t);
+            if (tVal === "1") expected = qValBefore === "0" ? "1" : (qValBefore === "1" ? "0" : "x");
+            else if (tVal === "0") expected = qValBefore;
+          } else if (checker === "JK_FF") {
+            const jVal = valueAt(transitions[inputs["j"]], t);
+            const kVal = valueAt(transitions[inputs["k"]], t);
+            if (jVal === "0" && kVal === "0") expected = qValBefore;
+            else if (jVal === "0" && kVal === "1") expected = "0";
+            else if (jVal === "1" && kVal === "0") expected = "1";
+            else if (jVal === "1" && kVal === "1") expected = qValBefore === "0" ? "1" : (qValBefore === "1" ? "0" : "x");
+          }
+        }
+        
         if (expected === "0" || expected === "1") {
           checkedEdges += 1;
-          if (qVal !== expected) {
-            errors.push({ message: `DFF mismatch at t=${t}${timescale.replace("1", "")}: expected q=${expected}, got q=${qVal}.`, signal: "q", time: t });
+          const qValAfter = valueAt(qTr, t);
+          if (qValAfter !== expected) {
+            errors.push({ message: `${checker} mismatch at t=${t}${timescale.replace("1", "")}: expected q=${expected}, got q=${qValAfter}.`, signal: "q", time: t });
           }
         }
       }
@@ -250,6 +281,8 @@ function createSvgEl(tag, attrs = {}) {
 }
 
 function renderWaveform(parsed, errors = []) {
+  currentParsed = parsed;
+  currentErrors = errors;
   const svg = document.getElementById("waveformSvg");
   while (svg.firstChild) svg.removeChild(svg.firstChild);
 
@@ -275,8 +308,8 @@ function renderWaveform(parsed, errors = []) {
   svg.setAttribute("width", width);
   svg.setAttribute("height", height);
 
-  const plotW = width - left - right;
-  const xOf = (t) => left + (t / maxTime) * plotW;
+  const plotW = (width - left - right) * timeScale;
+  const xOf = (t) => left + (t / maxTime) * plotW - timeOffset;
   const errSignals = new Set(errors.map(e => e.signal).filter(Boolean));
 
   signals.forEach((sig, idx) => {
@@ -347,9 +380,11 @@ function renderWaveform(parsed, errors = []) {
       crosshairGroup.setAttribute("style", "display: block; pointer-events: none;");
       crosshairLine.setAttribute("x1", ex);
       crosshairLine.setAttribute("x2", ex);
-      const t = ((ex - left) / plotW) * maxTime;
-      crosshairText.setAttribute("x", ex + 5);
-      crosshairText.textContent = `t=${Math.round(t)}`;
+      const t = ((ex - left + timeOffset) / plotW) * maxTime;
+      if (t >= 0 && t <= maxTime) {
+        crosshairText.setAttribute("x", ex + 5);
+        crosshairText.textContent = `t=${Math.round(t)}`;
+      }
     } else {
       crosshairGroup.setAttribute("style", "display: none;");
     }
@@ -476,6 +511,38 @@ async function init() {
       themeToggleBtn.textContent = "☀";
       localStorage.setItem("theme", "light");
     }
+  });
+
+  const wrap = document.getElementById("waveformWrap");
+  wrap.addEventListener("wheel", (e) => {
+    if (!currentParsed) return;
+    e.preventDefault();
+    const zoomFactor = 1.1;
+    if (e.deltaY < 0) timeScale *= zoomFactor;
+    else timeScale /= zoomFactor;
+    timeScale = Math.max(0.1, Math.min(timeScale, 100));
+    renderWaveform(currentParsed, currentErrors);
+  });
+
+  wrap.addEventListener("mousedown", (e) => {
+    isPanning = true;
+    startPanX = e.clientX;
+    wrap.style.cursor = "grabbing";
+  });
+
+  window.addEventListener("mousemove", (e) => {
+    if (!isPanning || !currentParsed) return;
+    const dx = e.clientX - startPanX;
+    timeOffset -= dx;
+    startPanX = e.clientX;
+    // Keep offset bounds reasonable
+    timeOffset = Math.max(-500, timeOffset);
+    renderWaveform(currentParsed, currentErrors);
+  });
+
+  window.addEventListener("mouseup", () => {
+    isPanning = false;
+    wrap.style.cursor = "default";
   });
 
   await loadCheckers();

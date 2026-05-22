@@ -27,7 +27,9 @@ CHECKER_METADATA: Dict[str, Dict[str, Any]] = {
     "HALF_ADDER": {"kind": "logic", "inputs": ["a", "b"], "outputs": ["sum", "carry"], "required": ["a", "b", "sum", "carry"], "description": "sum = a XOR b; carry = a AND b"},
     "FULL_ADDER": {"kind": "logic", "inputs": ["a", "b", "cin"], "outputs": ["sum", "cout"], "required": ["a", "b", "cin", "sum", "cout"], "description": "1-bit full adder"},
     "MUX2": {"kind": "logic", "inputs": ["d0", "d1", "sel"], "outputs": ["y"], "required": ["d0", "d1", "sel", "y"], "description": "y = d1 if sel else d0"},
-    "DFF": {"kind": "sequential", "required": ["clk", "d", "q"], "optional": ["rst"], "description": "q captures d at clk rising edge; optional rst forces q=0"},
+    "DFF": {"kind": "sequential", "required": ["clk", "d", "q"], "optional": ["rst"], "description": "D Flip-Flop: q captures d at posedge clk"},
+    "T_FF": {"kind": "sequential", "required": ["clk", "t", "q"], "optional": ["rst"], "description": "T Flip-Flop: q toggles if t=1 at posedge clk"},
+    "JK_FF": {"kind": "sequential", "required": ["clk", "j", "k", "q"], "optional": ["rst"], "description": "JK Flip-Flop: q changes based on j,k at posedge clk"},
 }
 
 
@@ -250,11 +252,11 @@ def verify_logic_function(parsed: Dict[str, Any], checker: str = "AND", signal_m
     }
 
 
-def verify_dff(parsed: Dict[str, Any], signal_map: Optional[Dict[str, str]] = None, rst_active_high: bool = True) -> Dict[str, Any]:
+def verify_flip_flop(parsed: Dict[str, Any], checker_name: str, signal_map: Optional[Dict[str, str]] = None, rst_active_high: bool = True) -> Dict[str, Any]:
     transitions = parsed["transitions"]
     timescale = parsed["timescale"]
 
-    required = CHECKER_METADATA["DFF"]["required"]
+    required = CHECKER_METADATA[checker_name]["required"]
     resolved, errors = _resolve_required_signals(transitions, required, signal_map)
 
     rst_name = None
@@ -263,12 +265,11 @@ def verify_dff(parsed: Dict[str, Any], signal_map: Optional[Dict[str, str]] = No
         if rst_candidates and rst_name is None:
             errors.append(_build_missing_signal_error("rst", signal_map.get("rst"), rst_candidates))
     else:
-        # best-effort auto resolve optional rst
         rst_name, _ = resolve_signal_name(list(transitions.keys()), "rst", None)
 
     if errors:
         return {
-            "checker": "DFF_POSEDGE",
+            "checker": f"{checker_name}_POSEDGE",
             "verdict": "Incorrect",
             "error_count": len(errors),
             "errors": errors,
@@ -281,9 +282,14 @@ def verify_dff(parsed: Dict[str, Any], signal_map: Optional[Dict[str, str]] = No
         }
 
     clk_tr = transitions[resolved["clk"]]
-    d_tr = transitions[resolved["d"]]
     q_tr = transitions[resolved["q"]]
     rst_tr = transitions[rst_name] if rst_name else None
+
+    # Get specific inputs for the FF type
+    input_trs = {}
+    for req in required:
+        if req not in ("clk", "q"):
+            input_trs[req] = transitions[resolved[req]]
 
     rising_edges: List[int] = []
     for i in range(1, len(clk_tr)):
@@ -296,25 +302,54 @@ def verify_dff(parsed: Dict[str, Any], signal_map: Optional[Dict[str, str]] = No
     allowed_q_change_times = set(rising_edges)
 
     for t in rising_edges:
-        d_val = value_at_time(d_tr, t)
-        q_val = value_at_time(q_tr, t)
-
+        q_val_before = value_at_time(q_tr, t - 1)  # Value just before posedge
+        
         rst_active = False
         if rst_tr:
             rst_val = value_at_time(rst_tr, t)
             rst_active = (rst_val == "1") if rst_active_high else (rst_val == "0")
 
-        expected = "0" if rst_active else d_val
+        if rst_active:
+            expected = "0"
+        else:
+            if checker_name == "DFF":
+                expected = value_at_time(input_trs["d"], t)
+            elif checker_name == "T_FF":
+                t_val = value_at_time(input_trs["t"], t)
+                if t_val == "1":
+                    expected = "1" if q_val_before == "0" else ("0" if q_val_before == "1" else "x")
+                elif t_val == "0":
+                    expected = q_val_before
+                else:
+                    expected = "x"
+            elif checker_name == "JK_FF":
+                j_val = value_at_time(input_trs["j"], t)
+                k_val = value_at_time(input_trs["k"], t)
+                if j_val == "0" and k_val == "0":
+                    expected = q_val_before
+                elif j_val == "0" and k_val == "1":
+                    expected = "0"
+                elif j_val == "1" and k_val == "0":
+                    expected = "1"
+                elif j_val == "1" and k_val == "1":
+                    expected = "1" if q_val_before == "0" else ("0" if q_val_before == "1" else "x")
+                else:
+                    expected = "x"
+            else:
+                expected = "x"
+
+        q_val_after = value_at_time(q_tr, t)
+
         if expected in ("0", "1"):
             checked_edges += 1
-            if q_val != expected:
+            if q_val_after != expected:
                 errors.append({
                     "type": "mismatch",
                     "signal": "q",
                     "time": t,
                     "expected": expected,
-                    "actual": q_val,
-                    "message": f"DFF mismatch at t={format_time(t, timescale)}: expected q={expected}, got q={q_val}."
+                    "actual": q_val_after,
+                    "message": f"{checker_name} mismatch at t={format_time(t, timescale)}: expected q={expected}, got q={q_val_after}."
                 })
 
     for i in range(1, len(q_tr)):
@@ -331,7 +366,7 @@ def verify_dff(parsed: Dict[str, Any], signal_map: Optional[Dict[str, str]] = No
 
     verdict = "Correct" if not errors else "Incorrect"
     return {
-        "checker": "DFF_POSEDGE",
+        "checker": f"{checker_name}_POSEDGE",
         "verdict": verdict,
         "error_count": len(errors),
         "errors": errors,
@@ -346,8 +381,8 @@ def verify_dff(parsed: Dict[str, Any], signal_map: Optional[Dict[str, str]] = No
 
 def verify_waveform(parsed: Dict[str, Any], checker: str = "AND", signal_map: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     checker_name = checker.upper().strip()
-    if checker_name == "DFF":
-        return verify_dff(parsed, signal_map=signal_map)
+    if checker_name in ["DFF", "T_FF", "JK_FF"]:
+        return verify_flip_flop(parsed, checker_name, signal_map=signal_map)
     return verify_logic_function(parsed, checker=checker_name, signal_map=signal_map)
 
 
