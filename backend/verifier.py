@@ -1,6 +1,8 @@
 from typing import Dict, List, Any, Callable, Optional, Tuple
 import re
 
+from backend.assertion_engine import evaluate_assertion
+
 
 LOGIC_CHECKERS: Dict[str, Callable[..., Dict[str, str]]] = {
     "AND": lambda a, b: {"y": "1" if (a == "1" and b == "1") else "0"},
@@ -30,6 +32,7 @@ CHECKER_METADATA: Dict[str, Dict[str, Any]] = {
     "DFF": {"kind": "sequential", "required": ["clk", "d", "q"], "optional": ["rst"], "description": "D Flip-Flop: q captures d at posedge clk"},
     "T_FF": {"kind": "sequential", "required": ["clk", "t", "q"], "optional": ["rst"], "description": "T Flip-Flop: q toggles if t=1 at posedge clk"},
     "JK_FF": {"kind": "sequential", "required": ["clk", "j", "k", "q"], "optional": ["rst"], "description": "JK Flip-Flop: q changes based on j,k at posedge clk"},
+    "ASSERTION": {"kind": "temporal", "required": [], "optional": [], "description": "Custom temporal logic assertion engine"},
 }
 
 
@@ -379,8 +382,13 @@ def verify_flip_flop(parsed: Dict[str, Any], checker_name: str, signal_map: Opti
     }
 
 
-def verify_waveform(parsed: Dict[str, Any], checker: str = "AND", signal_map: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+def verify_waveform(parsed: Dict[str, Any], checker: str = "AND", signal_map: Optional[Dict[str, str]] = None, assertion_str: Optional[str] = None) -> Dict[str, Any]:
     checker_name = checker.upper().strip()
+    if checker_name == "ASSERTION":
+        if not assertion_str:
+            return {"verdict": "Error", "errors": [{"message": "No assertion string provided for ASSERTION checker."}], "summary": {}}
+        return evaluate_assertion(parsed, assertion_str, signal_map or {})
+        
     if checker_name in ["DFF", "T_FF", "JK_FF"]:
         return verify_flip_flop(parsed, checker_name, signal_map=signal_map)
     return verify_logic_function(parsed, checker=checker_name, signal_map=signal_map)

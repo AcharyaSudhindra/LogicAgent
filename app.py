@@ -95,8 +95,9 @@ def upload_vcd():
 
     checker = get_checker_from_request()
     signal_map = parse_signal_map_from_request()
+    assertion_str = request.form.get("assertion_str") or request.args.get("assertion_str") or ""
     parsed = parse_vcd_text(vcd_text, default_timescale=DEFAULT_TIMESCALE)
-    verify_result = verify_waveform(parsed, checker=checker, signal_map=signal_map)
+    verify_result = verify_waveform(parsed, checker=checker, signal_map=signal_map, assertion_str=assertion_str)
 
     LAST_PARSED["filename"] = filename
     LAST_PARSED["parsed"] = parsed
