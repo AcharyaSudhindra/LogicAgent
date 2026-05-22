@@ -476,6 +476,11 @@ async function runBackend(file, checker, signalMap) {
   uploadForm.append("file", file);
   uploadForm.append("checker", checker);
   uploadForm.append("signal_map", JSON.stringify(signalMap));
+  
+  if (checker === "ASSERTION") {
+    uploadForm.append("assertion_str", document.getElementById("customAssertion").value);
+  }
+  
   Object.entries(signalMap).forEach(([k, v]) => uploadForm.append(`map_${k}`, v));
 
   const uploadRes = await fetch(`${API_BASE}/upload`, { method: "POST", body: uploadForm });
@@ -494,6 +499,11 @@ async function runBackend(file, checker, signalMap) {
 
 function runLocal() {
   const checker = selectedChecker();
+  if (checker === "ASSERTION") {
+    showResult({ verdict: "Incorrect", errors: [{ message: "Local verification is not supported for custom assertions. Please use 'Run Backend Verify'." }], summary: { checked_timestamps: 0 } });
+    return;
+  }
+  
   const signalMap = getSignalMapFromInputs();
   const parsed = parseVCD(currentText);
   const result = localCheck(parsed, checker, signalMap);
@@ -570,9 +580,11 @@ async function init() {
   });
 
   document.getElementById("checkerSelect").addEventListener("change", () => {
+    const isAssertion = selectedChecker() === "ASSERTION";
+    document.getElementById("customAssertion").style.display = isAssertion ? "block" : "none";
     updateMappingGrid();
     if (!currentText.trim()) return;
-    runLocal();
+    if (!isAssertion) runLocal();
   });
 
   document.getElementById("loadSampleBtn").addEventListener("click", () => {
