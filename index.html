@@ -27,7 +27,10 @@
     </section>
 
     <section class="card">
-      <h3>Signal Mapping (optional, for Vivado hierarchy)</h3>
+      <div class="header-row" style="margin-bottom: 5px;">
+        <h3 style="margin: 0;">Signal Mapping (optional, for Vivado hierarchy)</h3>
+        <button id="autoMapBtn" class="secondary" style="padding: 6px 12px; font-size: 0.9em;">Auto Map (Smart)</button>
+      </div>
       <p class="subtitle small">Map canonical names to VCD signal names. Example: <code>tb/dut/a</code>, <code>tb.dut.q</code>.</p>
       <div class="mapping-grid" id="mappingGrid">
         <!-- Populated dynamically based on selected checker -->
@@ -35,7 +38,11 @@
     </section>
 
     <section class="card">
-      <div id="verdict">Verdict: Waiting for input</div>
+      <div class="header-row">
+        <div id="verdict">Verdict: Waiting for input</div>
+        <button id="explainBtn" style="display: none; background-color: var(--primary); color: white;">Explain Error</button>
+      </div>
+      <div id="explanationBox" style="display: none; background: var(--bg); padding: 12px; border-radius: 6px; margin-top: 10px; margin-bottom: 10px; white-space: pre-wrap; font-size: 0.9em; border: 1px solid var(--border);"></div>
       <ul id="errorList"></ul>
       <div id="metrics"></div>
     </section>
