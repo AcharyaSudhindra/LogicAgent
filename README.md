@@ -1,44 +1,41 @@
 # LogicAgent AI
 
-A powerful, AI-driven VCD waveform verification platform and autonomous RTL agent. This tool not only verifies digital logic and sequential circuits against behavioral expectations but also features a built-in **Gemini-powered Autonomous Agent** that can write, simulate, and debug Verilog code entirely on its own!
+LogicAgent AI is an automated waveform verification platform and autonomous RTL synthesis agent. The system combines deterministic Verilog behavioral simulation with a large language model (LLM) to iteratively generate, simulate, and formally verify digital logic circuits.
 
-## ✨ Hackathon Features
+## Core Capabilities
 
-- **Autonomous RTL Agent**: 
-  - Provide a prompt like "Write a D Flip-Flop", and the agent will write the Verilog code, compile it using a built-in zero-dependency Python simulator, generate a waveform, and verify it against our backend checkers until it succeeds!
-- **AI Chatbot & Debug Assistant**: 
-  - Chat directly with Gemini 3.1 Pro about your waveforms.
-  - Ask the debug assistant to analyze verification errors and explain why your circuit failed.
+- **Autonomous RTL Synthesis**: Utilizes an LLM-driven feedback loop to iteratively write Verilog code, execute behavioral simulations, and verify the resulting Value Change Dump (VCD) waveforms against backend assertions until success criteria are met.
+- **Waveform Analysis & Debugging**: Incorporates an interactive diagnostic interface where the LLM can analyze VCD traces and provide granular root-cause analysis for verification failures.
 - **Multi-Checker Verification Engine**:
-  - Combinational: `AND`, `OR`, `XOR`, `NAND`, `NOR`, `XNOR`, `HALF_ADDER`, `FULL_ADDER`, `MUX2`
-  - Sequential: `DFF`, `T_FF`, `JK_FF`, `COUNTER`
-- **Zero-Dependency Verilog Simulator**: 
-  - Built-in `sim_engine.py` can parse and simulate behavioral Verilog directly in Python, generating VCD traces on the fly.
-- **Vivado-Friendly Signal Resolution**:
-  - Auto-resolves hierarchical names (e.g., `tb/dut/clk` to `clk`).
-- **Premium UI**: 
-  - Beautiful, tabbed, glassmorphism UI for waveform visualization, autonomous agent streaming, and AI chat.
+  - **Combinational Logic**: Supports `AND`, `OR`, `XOR`, `NAND`, `NOR`, `XNOR`, `HALF_ADDER`, `FULL_ADDER`, and `MUX2` verification templates.
+  - **Sequential Logic**: Supports `DFF`, `T_FF`, `JK_FF`, and `COUNTER` behavioral verification over synthesized clock cycles.
+- **Zero-Dependency RTL Simulation**: Features a lightweight, native Python behavioral Verilog simulator (`sim_engine.py`) capable of parsing logic, propagating signals, and emitting VCD format traces natively without external EDA toolchains.
+- **Hierarchical Signal Resolution**: Automatically resolves deep hierarchical path mappings (e.g., `tb/dut/clk` to `clk`), ensuring compatibility with standard EDA tools like Xilinx Vivado and ModelSim.
 
-## 🚀 Quick Start (Windows)
+## Quick Start (Windows)
 
-Just double-click the `run.bat` file! 
-1. It automatically installs dependencies (`flask`, `google-genai`).
-2. Prompts you for your **Gemini API Key** (required for AI features).
-3. Starts the server and opens your browser automatically.
+The repository includes a batch automation script for immediate deployment:
 
-## 🛠️ Manual Installation
+1. Execute the `run.bat` initialization script.
+2. The script will initialize a Python environment and resolve required dependencies (`flask`, `google-genai`).
+3. You will be prompted to supply a valid Gemini API key to enable the autonomous LLM features.
+4. The backend server and frontend interface will be automatically deployed and launched in your default browser.
 
-```powershell
+## Manual Installation
+
+To initialize the environment manually, execute the following commands:
+
+```bash
 pip install flask google-genai
 python app.py
 ```
-Open: `http://127.0.0.1:5000/`
+Access the interface at: `http://127.0.0.1:5000/`
 
-## 🧠 Project Architecture
+## Architecture Overview
 
-- **`app.py`**: Main Flask backend.
-- **`backend/agent_engine.py`**: The brain of the autonomous loop. Connects Gemini to the simulator and verifier tools.
-- **`backend/smart_engine.py`**: AI endpoints for waveform debugging and chat.
-- **`backend/sim_engine.py`**: Custom lightweight Python Verilog simulator.
-- **`backend/verifier.py`**: Core logic engine that analyzes VCD states.
-- **`index.html` & `static/js/app.js`**: Dynamic frontend with Server-Sent Events (SSE) for live agent streaming.
+- **`app.py`**: The primary Flask application routing and API handler.
+- **`backend/agent_engine.py`**: The autonomous execution loop responsible for orchestrating LLM tool calls, invoking the simulator, and asserting outputs.
+- **`backend/smart_engine.py`**: API endpoints managing interactive waveform diagnostics and chat context.
+- **`backend/sim_engine.py`**: The deterministic Python-based behavioral Verilog parser and simulator.
+- **`backend/verifier.py`**: The core verification engine that consumes VCD structures and asserts state correctness.
+- **`index.html` & `static/js/app.js`**: The frontend client application utilizing Server-Sent Events (SSE) for asynchronous telemetry streaming.
