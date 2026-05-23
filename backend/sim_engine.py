@@ -86,8 +86,11 @@ class RTLSimulator:
         """
         # Clean up Verilog constants
         expr = expr.replace("1'b0", "0").replace("1'b1", "1")
-        expr = expr.replace("~", " not ").replace("!", " not ")
+        expr = expr.replace("==", " == ").replace("!=", " != ")
+        expr = expr.replace("~", " not ")
+        expr = re.sub(r'!(?!=)', ' not ', expr)
         expr = expr.replace("&", " and ").replace("|", " or ").replace("^", " ^ ")
+        expr = expr.replace("(", " ( ").replace(")", " ) ")
         
         # Replace variable names with their state values
         # Sort keys by length descending to avoid replacing prefixes (e.g. 'a' in 'ack')
@@ -110,12 +113,8 @@ class RTLSimulator:
             for t in tokens:
                 if t in ('0', '1'):
                     parsed_tokens.append(t == '1')
-                elif t == 'and':
-                    parsed_tokens.append('and')
-                elif t == 'or':
-                    parsed_tokens.append('or')
-                elif t == 'not':
-                    parsed_tokens.append('not')
+                elif t in ('and', 'or', 'not', '(', ')', '==', '!='):
+                    parsed_tokens.append(t)
                 elif t == '^':
                     parsed_tokens.append('!=')  # XOR
                 else:

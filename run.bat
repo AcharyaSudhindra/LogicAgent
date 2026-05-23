@@ -1,7 +1,7 @@
 @echo off
-title AI Testbench Verifier Launcher
+title LogicAgent AI Launcher
 echo =======================================
-echo AI Testbench Verifier
+echo LogicAgent AI
 echo =======================================
 echo.
 

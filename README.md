@@ -1,67 +1,44 @@
-# AI Testbench Verifier
+# LogicAgent AI
 
-Powerful VCD waveform verification platform for logic and sequential checks, with Vivado-compatible signal mapping.
+A powerful, AI-driven VCD waveform verification platform and autonomous RTL agent. This tool not only verifies digital logic and sequential circuits against behavioral expectations but also features a built-in **Gemini-powered Autonomous Agent** that can write, simulate, and debug Verilog code entirely on its own!
 
-## Features
-- Multi-checker engine:
-  - `AND`, `OR`, `XOR`, `NAND`, `NOR`, `XNOR`
-  - `DFF` (posedge D flip-flop check)
-- Vivado-friendly hierarchical signal resolution:
-  - Auto-resolves `a` to names like `tb/dut/a` or `tb.dut.a`
-  - Optional explicit signal mapping inputs
-- JSON APIs:
-  - `GET /checkers`
-  - `POST /upload`
-  - `POST /visualize`
-  - `GET /health`
-- Frontend waveform viewer with mismatch highlighting
+## ✨ Hackathon Features
 
-## Run
+- **Autonomous RTL Agent**: 
+  - Provide a prompt like "Write a D Flip-Flop", and the agent will write the Verilog code, compile it using a built-in zero-dependency Python simulator, generate a waveform, and verify it against our backend checkers until it succeeds!
+- **AI Chatbot & Debug Assistant**: 
+  - Chat directly with Gemini 3.1 Pro about your waveforms.
+  - Ask the debug assistant to analyze verification errors and explain why your circuit failed.
+- **Multi-Checker Verification Engine**:
+  - Combinational: `AND`, `OR`, `XOR`, `NAND`, `NOR`, `XNOR`, `HALF_ADDER`, `FULL_ADDER`, `MUX2`
+  - Sequential: `DFF`, `T_FF`, `JK_FF`, `COUNTER`
+- **Zero-Dependency Verilog Simulator**: 
+  - Built-in `sim_engine.py` can parse and simulate behavioral Verilog directly in Python, generating VCD traces on the fly.
+- **Vivado-Friendly Signal Resolution**:
+  - Auto-resolves hierarchical names (e.g., `tb/dut/clk` to `clk`).
+- **Premium UI**: 
+  - Beautiful, tabbed, glassmorphism UI for waveform visualization, autonomous agent streaming, and AI chat.
 
-### Option 1: Single Click (Windows)
-Just double-click the `run.bat` file! It will install dependencies, prompt you for an optional API key, start the server, and open your browser automatically.
+## 🚀 Quick Start (Windows)
 
-### Option 2: Manual
+Just double-click the `run.bat` file! 
+1. It automatically installs dependencies (`flask`, `google-genai`).
+2. Prompts you for your **Gemini API Key** (required for AI features).
+3. Starts the server and opens your browser automatically.
+
+## 🛠️ Manual Installation
+
 ```powershell
 pip install flask google-genai
 python app.py
 ```
 Open: `http://127.0.0.1:5000/`
 
-## API Usage
+## 🧠 Project Architecture
 
-### 1. List supported checkers
-```powershell
-curl http://127.0.0.1:5000/checkers
-```
-
-### 2. Verify waveform
-```powershell
-curl -X POST -F "file=@sample.vcd" -F "checker=AND" http://127.0.0.1:5000/upload
-```
-
-### 3. Verify with Vivado signal mapping
-```powershell
-curl -X POST ^
-  -F "file=@vivado_dump.vcd" ^
-  -F "checker=DFF" ^
-  -F "map_clk=tb/dut/clk" ^
-  -F "map_d=tb/dut/d" ^
-  -F "map_q=tb/dut/q" ^
-  -F "map_rst=tb/dut/rst" ^
-  http://127.0.0.1:5000/upload
-```
-
-### 4. Get visualization JSON
-```powershell
-curl -X POST -F "file=@sample.vcd" http://127.0.0.1:5000/visualize
-```
-
-## Project Structure
-- `app.py` - Flask API routes
-- `backend/vcd_parser.py` - VCD parser
-- `backend/verifier.py` - checker engine + signal resolution
-- `backend/visualizer.py` - waveform JSON builder
-- `index.html` - frontend shell
-- `static/css/styles.css` - frontend styles
-- `static/js/app.js` - frontend logic
+- **`app.py`**: Main Flask backend.
+- **`backend/agent_engine.py`**: The brain of the autonomous loop. Connects Gemini to the simulator and verifier tools.
+- **`backend/smart_engine.py`**: AI endpoints for waveform debugging and chat.
+- **`backend/sim_engine.py`**: Custom lightweight Python Verilog simulator.
+- **`backend/verifier.py`**: Core logic engine that analyzes VCD states.
+- **`index.html` & `static/js/app.js`**: Dynamic frontend with Server-Sent Events (SSE) for live agent streaming.
