@@ -1,14 +1,5 @@
 # LogicAgent AI
 
-<p align="center">
-  <img src="assets/dashboard.png" width="49%" />
-  <img src="assets/agent.png" width="49%" />
-</p>
-<p align="center">
-  <img src="assets/debug.png" width="49%" />
-  <img src="assets/chat.png" width="49%" />
-</p>
-
 LogicAgent AI is an advanced, automated waveform verification platform and autonomous RTL synthesis agent. The system combines deterministic Verilog behavioral simulation with a sophisticated Large Language Model (LLM) to iteratively generate, simulate, and formally verify digital logic circuits without requiring external Electronic Design Automation (EDA) toolchains.
 
 The platform is designed to serve as both a diagnostic tool for hardware verification engineers and an autonomous agent capable of closing the loop between RTL specification and testbench validation.
@@ -35,6 +26,24 @@ The platform features a proprietary, lightweight Verilog behavioral simulator (`
 
 ### Hierarchical Signal Resolution
 To ensure interoperability with standard industry tools like Xilinx Vivado and ModelSim, the verification engine automatically resolves complex hierarchical signal paths (e.g., matching a user-defined `clk` to `tb/dut/clk` or `tb.dut.clk`).
+
+## Interface Overview
+
+**Main Verification Dashboard**
+The central interface for uploading Value Change Dump (VCD) waveforms and evaluating them against strict combinational and sequential assertions.
+<p align="center"><img src="assets/dashboard.png" width="90%" /></p>
+
+**Autonomous RTL Agent**
+An autonomous LLM-driven loop that dynamically generates, compiles, and verifies Verilog logic to solve design goals.
+<p align="center"><img src="assets/agent.png" width="90%" /></p>
+
+**RTL Debug Assistant**
+An interactive diagnostic tool where the AI analyzes waveform traces and provides granular root-cause analysis for verification failures.
+<p align="center"><img src="assets/debug.png" width="90%" /></p>
+
+**Contextual AI Chatbot**
+A built-in chat interface enabling hardware engineers to query design specifications and receive interactive guidance directly within the IDE.
+<p align="center"><img src="assets/chat.png" width="90%" /></p>
 
 ## Installation & Deployment
 
