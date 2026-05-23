@@ -153,3 +153,26 @@ def analyze_debug_artifact(file_bytes: bytes, mime_type: str) -> str:
         return response.text
     except Exception as e:
         return f"Error communicating with Gemini: {str(e)}"
+
+def chat_with_agent(message: str) -> str:
+    """
+    Sends a chat message to Gemini and returns the response.
+    """
+    if not HAS_GENAI:
+        return "Error: The `google-genai` library is not installed. Please run `pip install google-genai` to use this feature."
+        
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return "Error: GEMINI_API_KEY environment variable is not set. Please set it to use the Chatbot."
+        
+    try:
+        client = genai.Client(api_key=api_key)
+        
+        # simple stateless chat
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=message
+        )
+        return response.text
+    except Exception as e:
+        return f"Error communicating with Gemini: {str(e)}"

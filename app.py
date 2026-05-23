@@ -1,6 +1,8 @@
 import json
+import uuid
+import os
 from typing import Dict, Any, Tuple
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, Response
 
 from backend.config import MAX_UPLOAD_BYTES, DEFAULT_TIMESCALE
 from backend import (
@@ -11,7 +13,9 @@ from backend import (
     get_checker_definitions,
 )
 
-from backend.smart_engine import suggest_signal_mapping, explain_verification_errors, analyze_debug_artifact
+from backend.smart_engine import suggest_signal_mapping, explain_verification_errors, analyze_debug_artifact, chat_with_agent
+from backend.agent_engine import RTLVerificationAgent
+from backend.sim_engine import simulate_verilog
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
@@ -188,6 +192,20 @@ def smart_debug_assistant():
     return jsonify({"analysis": analysis})
 
 
+@app.route("/smart/chat", methods=["POST", "OPTIONS"])
+def smart_chat():
+    if request.method == "OPTIONS":
+        return jsonify({"ok": True}), 200
+        
+    data = request.json or {}
+    message = data.get("message", "")
+    if not message:
+        return jsonify({"error": "No message provided."}), 400
+        
+    response = chat_with_agent(message)
+    return jsonify({"response": response})
+
+
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({
@@ -196,6 +214,69 @@ def health():
         "last_uploaded_file": LAST_PARSED["filename"],
         "supported_checkers": get_supported_checkers(),
     })
+
+
+# --- Autonomous RTL Agent Routes ---
+
+AGENT_SESSIONS: Dict[str, RTLVerificationAgent] = {}
+
+TEMPLATES = {
+    "AND": {
+        "goal": "Fix the AND gate logic: the output y should represent a AND b.",
+        "code": "module and_gate(a, b, y);\n  input a, b;\n  output y;\n  // BUG: Used OR instead of AND\n  assign y = a | b;\nendmodule"
+    },
+    "DFF": {
+        "goal": "Fix the D Flip-Flop: q captures d at posedge clk, with an active-high reset rst that forces q to 0.",
+        "code": "module dff(clk, d, q, rst);\n  input clk, d, rst;\n  output reg q;\n  // BUG: Triggers on negedge and reset sets to 1\n  always @(negedge clk) begin\n    if (rst) q <= 1'b1;\n    else q <= d;\n  end\nendmodule"
+    },
+    "FULL_ADDER": {
+        "goal": "Fix the 1-bit Full Adder: calculate correct sum and cout outputs from a, b, and cin.",
+        "code": "module full_adder(a, b, cin, sum, cout);\n  input a, b, cin;\n  output sum, cout;\n  // BUG: sum logic is missing cin, cout logic is incorrect\n  assign sum = a ^ b;\n  assign cout = (a & b) | cin;\nendmodule"
+    }
+}
+
+
+@app.route("/agent/templates", methods=["GET"])
+def get_templates():
+    return jsonify(TEMPLATES)
+
+
+@app.route("/agent/session", methods=["POST", "OPTIONS"])
+def create_agent_session():
+    if request.method == "OPTIONS":
+        return jsonify({"ok": True}), 200
+        
+    data = request.json or {}
+    code = data.get("code", "")
+    checker = data.get("checker", "AND").upper()
+    goal = data.get("goal", "")
+    
+    api_key = os.environ.get("GEMINI_API_KEY") or data.get("api_key", "")
+    if not api_key:
+        return jsonify({"error": "GEMINI_API_KEY environment variable or user API key is not set. Please supply it to start."}), 400
+
+    session_id = str(uuid.uuid4())
+    agent = RTLVerificationAgent(code, checker, goal, api_key)
+    AGENT_SESSIONS[session_id] = agent
+    
+    return jsonify({
+        "session_id": session_id,
+        "checker": checker,
+        "goal": goal
+    })
+
+
+@app.route("/agent/run/<session_id>", methods=["GET"])
+def run_agent_loop(session_id):
+    agent = AGENT_SESSIONS.get(session_id)
+    if not agent:
+        return jsonify({"error": "Invalid or expired session ID."}), 404
+        
+    def stream():
+        for event_data in agent.execute_loop():
+            yield f"data: {event_data}\n\n"
+            
+    return Response(stream(), mimetype="text/event-stream")
 
 
 if __name__ == "__main__":

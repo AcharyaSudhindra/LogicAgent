@@ -1,0 +1,355 @@
+import re
+from typing import Dict, Any, List, Tuple
+
+class RTLSimulator:
+    """
+    A lightweight, zero-dependency behavioral Verilog simulator.
+    Capable of parsing and executing simple Verilog modules and compiling them into VCD traces.
+    """
+    def __init__(self, code: str):
+        self.code = code
+        self.inputs: List[str] = []
+        self.outputs: List[str] = []
+        self.registers: List[str] = []
+        self.assigns: List[Tuple[str, str]] = []  # (output, expression)
+        self.always_blocks: List[Dict[str, Any]] = []  # List of sequential rules
+        self.state: Dict[str, str] = {}  # Holds current signal values ('0', '1', 'x')
+        self._parse()
+
+    def _clean_code(self) -> str:
+        # Strip comments
+        code = re.sub(r'//.*', '', self.code)
+        code = re.sub(r'/\*.*?\*/', '', code, flags=re.DOTALL)
+        return code
+
+    def _parse(self):
+        cleaned = self._clean_code()
+        
+        # Parse inputs
+        for match in re.finditer(r'\binput\b\s*(?:reg|wire)?\s*([^;]+);', cleaned):
+            signals = [s.strip() for s in match.group(1).split(',')]
+            self.inputs.extend(signals)
+            
+        # Parse outputs
+        for match in re.finditer(r'\boutput\b\s*(reg|wire)?\s*([^;]+);', cleaned):
+            signals = [s.strip() for s in match.group(2).split(',')]
+            self.outputs.extend(signals)
+            if match.group(1) == 'reg':
+                self.registers.extend(signals)
+                
+        # Parse internal registers
+        for match in re.finditer(r'\breg\b\s*([^;]+);', cleaned):
+            signals = [s.strip() for s in match.group(1).split(',')]
+            self.registers.extend(signals)
+
+        # Parse assign statements
+        for match in re.finditer(r'\bassign\b\s+([a-zA-Z0-9_]+)\s*=\s*([^;]+);', cleaned):
+            self.assigns.append((match.group(1).strip(), match.group(2).strip()))
+
+        # Parse always blocks (simple behavioral sequential blocks)
+        always_headers = list(re.finditer(r'\balways\s*@\s*\(\s*(posedge|negedge)\s+([a-zA-Z0-9_]+)\s*\)', cleaned))
+        for i, header in enumerate(always_headers):
+            edge, clk_name = header.groups()
+            start_idx = header.end()
+            
+            end_idx = len(cleaned)
+            if i + 1 < len(always_headers):
+                end_idx = always_headers[i + 1].start()
+            else:
+                endmodule_match = re.search(r'\bendmodule\b', cleaned[start_idx:])
+                if endmodule_match:
+                    end_idx = start_idx + endmodule_match.start()
+                    
+            raw_body = cleaned[start_idx:end_idx].strip()
+            
+            if raw_body.startswith("begin"):
+                body = raw_body[5:].strip()
+                if body.endswith("end"):
+                    body = body[:-3].strip()
+            else:
+                body = raw_body
+                
+            self.always_blocks.append({
+                "edge": edge,
+                "clk": clk_name.strip(),
+                "body": body.strip()
+            })
+
+        # Initialize state
+        for sig in self.inputs + self.outputs + self.registers:
+            self.state[sig] = 'x'
+
+    def eval_expr(self, expr: str, local_state: Dict[str, str]) -> str:
+        """
+        Evaluate a simple Verilog expression based on current signal values.
+        Supports: &, |, ^, ~, !, variables, 1'b0, 1'b1, 0, 1.
+        """
+        # Clean up Verilog constants
+        expr = expr.replace("1'b0", "0").replace("1'b1", "1")
+        expr = expr.replace("~", " not ").replace("!", " not ")
+        expr = expr.replace("&", " and ").replace("|", " or ").replace("^", " ^ ")
+        
+        # Replace variable names with their state values
+        # Sort keys by length descending to avoid replacing prefixes (e.g. 'a' in 'ack')
+        sorted_keys = sorted(local_state.keys(), key=len, reverse=True)
+        
+        # We tokenise or use regex boundary checks to safely replace
+        for key in sorted_keys:
+            val = local_state[key]
+            # Replace as independent word
+            expr = re.sub(rf'\b{key}\b', f' {val} ', expr)
+
+        # Cleanup whitespace and evaluation safety
+        expr = expr.strip()
+        
+        # Parse simple logical expression
+        def eval_clean_python(clean_expr: str) -> str:
+            # Re-map clean_expr tokens
+            tokens = clean_expr.split()
+            parsed_tokens = []
+            for t in tokens:
+                if t in ('0', '1'):
+                    parsed_tokens.append(t == '1')
+                elif t == 'and':
+                    parsed_tokens.append('and')
+                elif t == 'or':
+                    parsed_tokens.append('or')
+                elif t == 'not':
+                    parsed_tokens.append('not')
+                elif t == '^':
+                    parsed_tokens.append('!=')  # XOR
+                else:
+                    return 'x'  # Unsupported token or contains 'x'
+            
+            # Join and evaluate
+            try:
+                py_expr = " ".join(str(x) for x in parsed_tokens)
+                res = eval(py_expr)
+                return '1' if res else '0'
+            except Exception:
+                return 'x'
+
+        return eval_clean_python(expr)
+
+    def execute_seq_block(self, body: str, trigger_state: Dict[str, str]) -> Dict[str, str]:
+        """
+        Execute simple sequential assignments inside a sequential always block.
+        Supports simple if-else blocks and non-blocking assignments (<=).
+        """
+        updates = {}
+        
+        # Extract if-else constructs
+        # Supports: if (rst) q <= 0; else q <= d;
+        if_match = re.search(r'if\s*\((.*?)\)\s*(?:begin)?\s*(.*?);?\s*(?:end)?\s*else\s*(?:begin)?\s*(.*?);?\s*(?:end)?\s*$', body, flags=re.DOTALL)
+        if if_match:
+            cond, then_body, else_body = if_match.groups()
+            cond_val = self.eval_expr(cond, trigger_state)
+            if cond_val == '1':
+                active_body = then_body
+            elif cond_val == '0':
+                active_body = else_body
+            else:
+                active_body = "" # indeterminate clock trigger if condition is x
+        else:
+            active_body = body
+
+        # Parse assignments (e.g. q <= d;)
+        assign_matches = re.finditer(r'([a-zA-Z0-9_]+)\s*<=\s*([^;]+);?', active_body)
+        for match in assign_matches:
+            target, expr = match.groups()
+            target = target.strip()
+            expr = expr.strip()
+            updates[target] = self.eval_expr(expr, trigger_state)
+
+        return updates
+
+
+def generate_test_stimuli(checker: str) -> List[Dict[str, str]]:
+    """
+    Generates test sequences (list of input stimulus states) based on the target checker.
+    """
+    chk = checker.upper()
+    stimuli = []
+    
+    if chk in ["AND", "OR", "XOR", "NAND", "NOR", "XNOR", "HALF_ADDER"]:
+        # Logic verification transitions
+        inputs = [
+            {"a": "0", "b": "0"},
+            {"a": "1", "b": "0"},
+            {"a": "1", "b": "1"},
+            {"a": "0", "b": "1"},
+            {"a": "0", "b": "0"}
+        ]
+        return inputs
+        
+    elif chk == "FULL_ADDER":
+        inputs = []
+        for a in ("0", "1"):
+            for b in ("0", "1"):
+                for cin in ("0", "1"):
+                    inputs.append({"a": a, "b": b, "cin": cin})
+        return inputs
+        
+    elif chk == "MUX2":
+        return [
+            {"d0": "0", "d1": "1", "sel": "0"},
+            {"d0": "1", "d1": "0", "sel": "0"},
+            {"d0": "1", "d1": "0", "sel": "1"},
+            {"d0": "0", "d1": "1", "sel": "1"},
+            {"d0": "0", "d1": "0", "sel": "0"},
+        ]
+        
+    elif chk in ["DFF", "T_FF", "JK_FF", "COUNTER"]:
+        # Sequential simulations require a clock cycle loop
+        # We generate raw stimuli for each clock transition or reset toggling.
+        seq = []
+        # Ticks: reset period, then data transitions
+        if chk == "DFF":
+            seq = [
+                {"clk": "0", "rst": "1", "d": "0"}, # reset active
+                {"clk": "1", "rst": "1", "d": "0"},
+                {"clk": "0", "rst": "0", "d": "1"}, # release reset, d=1
+                {"clk": "1", "rst": "0", "d": "1"}, # posedge triggers q=1
+                {"clk": "0", "rst": "0", "d": "0"}, # d=0
+                {"clk": "1", "rst": "0", "d": "0"}, # posedge triggers q=0
+                {"clk": "0", "rst": "0", "d": "1"}, 
+                {"clk": "1", "rst": "0", "d": "1"}, 
+            ]
+        elif chk == "T_FF":
+            seq = [
+                {"clk": "0", "rst": "1", "t": "0"},
+                {"clk": "1", "rst": "1", "t": "0"},
+                {"clk": "0", "rst": "0", "t": "1"}, # toggle enabled
+                {"clk": "1", "rst": "0", "t": "1"}, # posedge: q transitions to 1
+                {"clk": "0", "rst": "0", "t": "1"},
+                {"clk": "1", "rst": "0", "t": "1"}, # posedge: q transitions to 0
+                {"clk": "0", "rst": "0", "t": "0"}, # toggle disabled
+                {"clk": "1", "rst": "0", "t": "0"}, # posedge: q remains 0
+            ]
+        elif chk == "JK_FF":
+            seq = [
+                {"clk": "0", "rst": "1", "j": "0", "k": "0"},
+                {"clk": "1", "rst": "1", "j": "0", "k": "0"},
+                {"clk": "0", "rst": "0", "j": "1", "k": "0"}, # J=1, K=0 (set)
+                {"clk": "1", "rst": "0", "j": "1", "k": "0"}, # posedge: q=1
+                {"clk": "0", "rst": "0", "j": "0", "k": "1"}, # J=0, K=1 (reset)
+                {"clk": "1", "rst": "0", "j": "0", "k": "1"}, # posedge: q=0
+                {"clk": "0", "rst": "0", "j": "1", "k": "1"}, # J=1, K=1 (toggle)
+                {"clk": "1", "rst": "0", "j": "1", "k": "1"}, # posedge: q=1
+            ]
+        return seq
+        
+    return []
+
+
+def build_vcd_string(signals: List[str], timeline: List[Tuple[int, Dict[str, str]]], timescale: str = "1ns") -> str:
+    """
+    Compiles simulation transition data into a standard formatted VCD string.
+    """
+    lines = []
+    lines.append(f"$timescale {timescale} $end")
+    lines.append("$scope module tb $end")
+    
+    # Map signals to unique single-character identifiers
+    sig_ids = {}
+    ascii_code = 33 # Starting from '!'
+    for sig in signals:
+        sig_ids[sig] = chr(ascii_code)
+        ascii_code += 1
+        lines.append(f"$var wire 1 {sig_ids[sig]} {sig} $end")
+        
+    lines.append("$enddefinitions $end")
+    
+    # Write historical transition dump
+    prev_state = {}
+    for time, state in timeline:
+        lines.append(f"#{time}")
+        for sig, val in state.items():
+            if sig in sig_ids and prev_state.get(sig) != val:
+                lines.append(f"{val}{sig_ids[sig]}")
+                prev_state[sig] = val
+                
+    return "\n".join(lines)
+
+
+def simulate_verilog(code: str, checker: str) -> Tuple[bool, str, Dict[str, Any]]:
+    """
+    Simulates the provided Verilog block against targeted tests.
+    Returns: (compile_success, vcd_text_or_error, verify_results)
+    """
+    try:
+        sim = RTLSimulator(code)
+    except Exception as e:
+        return False, f"Syntax Compile Error: Failed to parse Verilog syntax. {str(e)}", {}
+
+    # Confirm module variables exist
+    if not sim.inputs and not sim.outputs:
+        return False, "Compile Error: No valid module inputs or outputs defined.", {}
+
+    stimuli = generate_test_stimuli(checker)
+    if not stimuli:
+        return False, f"Compile Error: Unsupported simulator checker template '{checker}'.", {}
+
+    timeline = []
+    current_time = 0
+    time_step = 10 # 10ns step sizes
+    
+    # Simulation state loop
+    for stim in stimuli:
+        # Save previous state to accurately compute transition edges
+        prev_state = sim.state.copy()
+        
+        # 1. Apply inputs
+        for inp, val in stim.items():
+            if inp in sim.inputs:
+                sim.state[inp] = val
+                
+        # 2. Evaluate sequential edge events (if any clock transition occurred)
+        # Check if clock posedge happened in this step
+        seq_updates = {}
+        for block in sim.always_blocks:
+            clk_name = block["clk"]
+            edge = block["edge"]
+            
+            # Simple clock toggle logic
+            is_posedge = (edge == "posedge" and stim.get(clk_name) == "1" and prev_state.get(clk_name) == "0")
+            is_negedge = (edge == "negedge" and stim.get(clk_name) == "0" and prev_state.get(clk_name) == "1")
+            
+            if is_posedge or is_negedge:
+                # Capture updates to apply after evaluating block (simulating non-blocking behaviors)
+                block_updates = sim.execute_seq_block(block["body"], sim.state)
+                seq_updates.update(block_updates)
+                
+        # Apply sequential registers updates
+        for reg, val in seq_updates.items():
+            if reg in sim.registers or reg in sim.outputs:
+                sim.state[reg] = val
+
+        # 3. Evaluate combinational assignments
+        # Iterate multiple times to resolve dependencies (propagating signals)
+        for _ in range(5):
+            changed = False
+            for out, expr in sim.assigns:
+                new_val = sim.eval_expr(expr, sim.state)
+                if sim.state.get(out) != new_val:
+                    sim.state[out] = new_val
+                    changed = True
+            if not changed:
+                break
+
+        # Record snapshot of current timeline state
+        timeline.append((current_time, sim.state.copy()))
+        current_time += time_step
+
+    # Output VCD file
+    all_signals = sorted(list(sim.state.keys()))
+    vcd_text = build_vcd_string(all_signals, timeline)
+    
+    # Verify the generated waveform using our backend waveform verifier!
+    from backend import parse_vcd_text, verify_waveform
+    try:
+        parsed = parse_vcd_text(vcd_text)
+        verify_results = verify_waveform(parsed, checker=checker)
+        return True, vcd_text, verify_results
+    except Exception as e:
+        return True, vcd_text, {"verdict": "Incorrect", "errors": [{"message": f"Verification execution error: {str(e)}"}], "summary": {}}

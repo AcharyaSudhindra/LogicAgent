@@ -37,7 +37,7 @@
       <div class="control-group">
         <div class="header-row" style="margin-bottom: 10px;">
           <h3 class="section-title" style="margin: 0;">3. Signal Mapping</h3>
-          <button id="autoMapBtn" class="icon-btn" title="Smart Auto Map">✨ Auto</button>
+          <button id="autoMapBtn" class="icon-btn" title="Smart Auto Map">Auto Map</button>
         </div>
         <div class="mapping-grid" id="mappingGrid">
           <!-- Populated dynamically -->
@@ -65,43 +65,71 @@
       </nav>
 
       <div class="content-scroll glow-capture" id="mainScroll">
-        <div class="bento-grid">
-          
-          <!-- Verdict Banner -->
-          <div class="verdict-banner waiting bento-item bento-full" id="verdictBanner">
-            <div class="verdict-status">
-              <div class="status-indicator"></div>
-              <h2 id="verdict">Waiting for input</h2>
+        
+        <!-- Tab Navigation -->
+        <div class="tabs-container">
+          <button class="tab-btn active" data-tab="dashboard">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            Dashboard
+          </button>
+          <button class="tab-btn" data-tab="agent">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2z"/><path d="M12 6v6l4 2"/></svg>
+            Autonomous Agent
+          </button>
+          <button class="tab-btn" data-tab="debug">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+            Debug Assistant
+          </button>
+          <button class="tab-btn" data-tab="chat">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+            AI Chatbot
+          </button>
+        </div>
+
+        <div class="tab-panes">
+          <!-- Dashboard Tab Content -->
+          <div class="bento-grid active-tab" data-tab-content="dashboard">
+            
+            <!-- Verdict Banner -->
+            <div class="verdict-banner waiting bento-item bento-full" id="verdictBanner">
+              <div class="verdict-status">
+                <div class="status-indicator"></div>
+                <h2 id="verdict">Waiting for input</h2>
+              </div>
+              <button id="explainBtn" class="explain-btn" style="display: none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                Explain Error
+              </button>
             </div>
-            <button id="explainBtn" class="explain-btn" style="display: none;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-              Explain Error
-            </button>
-          </div>
 
-          <div id="explanationBox" class="explanation-box bento-item bento-full" style="display: none;"></div>
+            <div id="explanationBox" class="explanation-box bento-item bento-full" style="display: none;"></div>
 
-          <!-- Metrics Container -->
-          <div class="panel glow-element bento-item" id="metricsPanel">
-            <h3 class="panel-title">Verification Metrics</h3>
-            <div class="metrics-container" id="metrics">
-              <!-- Metrics injected here -->
+            <!-- Metrics Container -->
+            <div class="panel glow-element bento-item" id="metricsPanel">
+              <h3 class="panel-title">Verification Metrics</h3>
+              <div class="metrics-container" id="metrics">
+                <!-- Metrics injected here -->
+              </div>
             </div>
-          </div>
 
-          <!-- Error List Container -->
-          <div id="errorListContainer" class="panel glow-element bento-item" style="display: none;">
-            <h3 class="panel-title">Mismatches & Errors</h3>
-            <ul id="errorList"></ul>
-          </div>
-
-          <!-- Waveform Viewer -->
-          <div class="panel glow-element waveform-panel bento-item bento-full">
-            <h3 class="panel-title">Logic Analyzer</h3>
-            <div id="waveformWrap">
-              <svg id="waveformSvg" width="100%" height="350"></svg>
+            <!-- Error List Container -->
+            <div id="errorListContainer" class="panel glow-element bento-item" style="display: none;">
+              <h3 class="panel-title">Mismatches & Errors</h3>
+              <ul id="errorList"></ul>
             </div>
+
+            <!-- Waveform Viewer -->
+            <div class="panel glow-element waveform-panel bento-item bento-full">
+              <h3 class="panel-title">Logic Analyzer</h3>
+              <div id="waveformWrap">
+                <svg id="waveformSvg" width="100%" height="350"></svg>
+              </div>
+            </div>
+            
           </div>
+
+          <!-- Debug Assistant Tab Content -->
+          <div class="bento-grid" data-tab-content="debug">
 
           <!-- AI Debug Assistant -->
           <div class="panel glow-element debug-panel bento-item bento-full" id="debugAssistantCard">
@@ -118,6 +146,109 @@
             </div>
             <div id="debugOutputBox" class="explanation-box" style="display: none; margin-top: 16px;"></div>
           </div>
+          </div>
+
+          <!-- Autonomous RTL Verification Agent Tab Content -->
+          <div class="bento-grid" data-tab-content="agent">
+          <div class="panel glow-element agent-panel bento-item bento-full" id="agentConsoleCard">
+            <div class="header-row" style="flex-wrap: wrap; gap: 12px;">
+              <h3 class="panel-title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2z"/><path d="M12 6v6l4 2"/></svg>
+                Autonomous RTL Verification Agent
+              </h3>
+              <div class="agent-quick-select" style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 0.8rem; color: var(--text-muted);">Quick Templates:</span>
+                <button class="template-btn icon-btn" data-template="AND">Buggy AND</button>
+                <button class="template-btn icon-btn" data-template="DFF">Buggy DFF</button>
+                <button class="template-btn icon-btn" data-template="FULL_ADDER">Buggy Full Adder</button>
+              </div>
+            </div>
+            <p class="panel-subtitle" style="margin-bottom: 20px;">Instruct Gemini to autonomously compile, simulate, and debug Verilog modules in a closed-loop execution cycle.</p>
+            
+            <div class="agent-workspace" style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px;">
+              <!-- Left side: Editor & Goal -->
+              <div class="agent-workspace-left" style="display: flex; flex-direction: column; min-width: 0;">
+                <div class="input-field-group">
+                  <h3 class="section-title" style="font-size: 0.75rem; margin-bottom: 8px;">1. Define Verification Goal</h3>
+                  <input type="text" id="agentGoal" placeholder="e.g. Fix the clock positive edge and reset logic to capture data properly" style="font-family: inherit; font-size: 0.9rem;" />
+                </div>
+                
+                <div class="input-field-group" style="margin-top: 16px; display: flex; flex-direction: column; flex: 1;">
+                  <h3 class="section-title" style="font-size: 0.75rem; display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    2. Verilog Code under Test
+                    <span style="color: var(--accent-primary); cursor: pointer; text-decoration: underline; text-transform: none; letter-spacing: 0;" id="resetCodeTemplate">Reset to Template</span>
+                  </h3>
+                  <div class="editor-container" style="flex: 1; display: flex; flex-direction: column;">
+                    <textarea id="agentCodeEditor" spellcheck="false" placeholder="// Write Verilog block here..." style="flex: 1; min-height: 220px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; line-height: 1.5; resize: vertical;"></textarea>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Right side: Real-time Agent Log -->
+              <div class="agent-workspace-right" style="display: flex; flex-direction: column; min-width: 0;">
+                <h3 class="section-title" style="font-size: 0.75rem; margin-bottom: 8px;">3. Agent Reasoning & Tool-use Log</h3>
+                <div class="agent-console-box" style="flex: 1; background: rgba(0,0,0,0.3); border: 1px solid var(--panel-border); border-radius: 12px; padding: 16px; overflow-y: auto; max-height: 310px; min-height: 290px;">
+                  <div class="agent-console-logs" id="agentLogs" style="display: flex; flex-direction: column; gap: 12px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">
+                    <div class="agent-log-item" style="color: var(--text-muted); display: flex; align-items: flex-start; gap: 8px;">
+                      <span class="log-bullet" style="color: var(--status-waiting);">*</span>
+                      <span class="log-text">Agent is idle. Select a template or write code, define a goal, and hit Initiate to start.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Code Diff Panel (shown after agent finishes) -->
+            <div class="agent-diff-panel" id="agentDiffPanel" style="display: none; margin-top: 24px; border-top: 1px dashed var(--panel-border); padding-top: 20px;">
+              <h3 class="section-title" style="font-size: 0.75rem; margin-bottom: 12px;">RTL Correction Diff</h3>
+              <div class="diff-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="diff-side">
+                  <div class="diff-header" style="font-size: 0.8rem; font-weight: 700; color: var(--status-err); background: var(--status-err-bg); padding: 6px 12px; border-radius: 6px 6px 0 0; border: 1px solid rgba(255, 42, 85, 0.2); border-bottom: none;">Original Code</div>
+                  <pre class="diff-pre" id="diffOriginal" style="margin: 0; background: rgba(255, 42, 85, 0.02); border: 1px solid rgba(255, 42, 85, 0.1); border-radius: 0 0 6px 6px; padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; line-height: 1.5; white-space: pre-wrap; overflow-x: auto; max-height: 250px;"></pre>
+                </div>
+                <div class="diff-side">
+                  <div class="diff-header" style="font-size: 0.8rem; font-weight: 700; color: var(--status-ok); background: var(--status-ok-bg); padding: 6px 12px; border-radius: 6px 6px 0 0; border: 1px solid rgba(0, 255, 157, 0.2); border-bottom: none;">Corrected Code</div>
+                  <pre class="diff-pre" id="diffCorrected" style="margin: 0; background: rgba(0, 255, 157, 0.02); border: 1px solid rgba(0, 255, 157, 0.1); border-radius: 0 0 6px 6px; padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; line-height: 1.5; white-space: pre-wrap; overflow-x: auto; max-height: 250px;"></pre>
+                </div>
+              </div>
+            </div>
+            
+            <div class="agent-actions" style="margin-top: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+              <div class="api-key-input-wrap" style="display: flex; align-items: center; gap: 8px;">
+                <input type="password" id="agentApiKey" placeholder="Paste optional Gemini API Key..." style="width: 250px; font-size: 0.8rem; padding: 8px 12px;" />
+                <span class="info-tooltip" title="If not provided, the server's GEMINI_API_KEY environment variable will be used." style="cursor: help; opacity: 0.7;">i</span>
+              </div>
+              <button id="runAgentBtn" class="primary-btn glow" style="padding: 12px 24px; display: flex; align-items: center; gap: 8px;">
+                <span>Start</span> Initiate Autonomous Debug Loop
+              </button>
+            </div>
+          </div>
+          </div>
+
+          <!-- AI Chatbot Tab Content -->
+          <div class="bento-grid" data-tab-content="chat">
+          <div class="panel glow-element chat-panel bento-item bento-full" id="chatbotCard">
+            <div class="header-row">
+              <h3 class="panel-title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                AI Assistant Chat
+              </h3>
+            </div>
+            <p class="panel-subtitle">Ask questions about your Verilog code, assertions, or testbenches.</p>
+            <div class="chat-container" style="display: flex; flex-direction: column; height: 400px; background: rgba(0,0,0,0.2); border: 1px solid var(--panel-border); border-radius: 12px; overflow: hidden;">
+              <div id="chatHistory" style="flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+                <div class="chat-msg bot-msg" style="align-self: flex-start; background: rgba(0, 229, 255, 0.1); border-left: 2px solid var(--accent-primary); padding: 10px 14px; border-radius: 8px 8px 8px 0; max-width: 80%; color: var(--text-main); font-size: 0.9rem;">
+                  Hello! How can I help you with your RTL design today?
+                </div>
+              </div>
+              <div class="chat-input-area" style="display: flex; padding: 12px; border-top: 1px solid var(--panel-border); background: rgba(0,0,0,0.4); gap: 12px;">
+                <input type="text" id="chatInput" placeholder="Type your message..." style="flex: 1; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 8px; padding: 10px 14px; color: var(--text-main); font-size: 0.9rem;" />
+                <button id="sendChatBtn" class="primary-btn glow" style="padding: 10px 20px;">Send</button>
+              </div>
+            </div>
+          </div>
+            </div>
+          </div>
 
         </div>
         
@@ -130,3 +261,4 @@
   <script src="static/js/app.js"></script>
 </body>
 </html>
+

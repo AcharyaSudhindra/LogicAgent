@@ -1,4 +1,4 @@
-const API_BASE = "http://127.0.0.1:5000";
+﻿const API_BASE = "http://127.0.0.1:5000";
 
 const SAMPLE_VCD = `$timescale 1ns $end
 $scope module tb $end
@@ -541,18 +541,18 @@ async function init() {
   const savedTheme = localStorage.getItem("theme") || "dark";
   if (savedTheme === "light") {
     document.body.setAttribute("data-theme", "light");
-    themeToggleBtn.textContent = "☀";
+    themeToggleBtn.textContent = "Light";
   }
 
   themeToggleBtn.addEventListener("click", () => {
     const isLight = document.body.getAttribute("data-theme") === "light";
     if (isLight) {
       document.body.removeAttribute("data-theme");
-      themeToggleBtn.textContent = "☾";
+      themeToggleBtn.textContent = "Dark";
       localStorage.setItem("theme", "dark");
     } else {
       document.body.setAttribute("data-theme", "light");
-      themeToggleBtn.textContent = "☀";
+      themeToggleBtn.textContent = "Light";
       localStorage.setItem("theme", "light");
     }
   });
@@ -640,7 +640,7 @@ async function init() {
       const signals = Object.keys(currentParsed.transitions);
       const checker = selectedChecker();
       
-      autoMapBtn.textContent = "Mapping...";
+      autoMapBtn.textContent = "Auto Map";
       try {
         const res = await fetch(`${API_BASE}/smart/map_signals`, {
           method: "POST",
@@ -659,7 +659,7 @@ async function init() {
         console.error(err);
         alert("Failed to auto map signals");
       } finally {
-        autoMapBtn.textContent = "Auto Map (Smart)";
+        autoMapBtn.textContent = "Auto Map";
       }
     });
   }
@@ -731,6 +731,324 @@ async function init() {
       }
     });
   }
+
+  // --- Tab Switching Logic ---
+  const tabBtns = document.querySelectorAll(".tab-btn");
+  const tabContents = document.querySelectorAll("[data-tab-content]");
+
+  // Default to dashboard
+  tabContents.forEach(content => {
+    if (content.getAttribute("data-tab-content") === "dashboard") {
+      content.classList.add("active-tab");
+    } else {
+      content.classList.remove("active-tab");
+    }
+  });
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      // Remove active class from all tabs
+      tabBtns.forEach(b => b.classList.remove("active"));
+      // Add active class to clicked tab
+      btn.classList.add("active");
+      
+      const targetTab = btn.getAttribute("data-tab");
+      
+      // Show/Hide content based on data-tab-content
+      tabContents.forEach(content => {
+        if (content.getAttribute("data-tab-content") === targetTab) {
+          content.classList.add("active-tab");
+        } else {
+          content.classList.remove("active-tab");
+        }
+      });
+      
+      // If switching to dashboard, re-render waveform to fix potential SVG dimension issues
+      if (targetTab === "dashboard" && currentParsed) {
+        setTimeout(() => {
+          renderWaveform(currentParsed, currentErrors);
+        }, 50);
+      }
+    });
+  });
+
+  // --- AI Chatbot Logic ---
+  const sendChatBtn = document.getElementById("sendChatBtn");
+  const chatInput = document.getElementById("chatInput");
+  const chatHistory = document.getElementById("chatHistory");
+
+  if (sendChatBtn && chatInput && chatHistory) {
+    const appendChatMsg = (text, isUser) => {
+      const msgDiv = document.createElement("div");
+      msgDiv.className = `chat-msg ${isUser ? 'user-msg' : 'bot-msg'}`;
+      msgDiv.style.alignSelf = isUser ? 'flex-end' : 'flex-start';
+      msgDiv.style.background = isUser ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 229, 255, 0.1)';
+      msgDiv.style.borderLeft = isUser ? 'none' : '2px solid var(--accent-primary)';
+      msgDiv.style.borderRight = isUser ? '2px solid var(--text-main)' : 'none';
+      msgDiv.style.padding = '10px 14px';
+      msgDiv.style.borderRadius = isUser ? '8px 8px 0 8px' : '8px 8px 8px 0';
+      msgDiv.style.maxWidth = '80%';
+      msgDiv.style.color = 'var(--text-main)';
+      msgDiv.style.fontSize = '0.9rem';
+      // simple markdown to html logic for bold/code blocks could go here, but textContent avoids XSS
+      msgDiv.textContent = text;
+      
+      chatHistory.appendChild(msgDiv);
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+    };
+
+    const handleChatSend = async () => {
+      const msg = chatInput.value.trim();
+      if (!msg) return;
+      
+      appendChatMsg(msg, true);
+      chatInput.value = "";
+      sendChatBtn.disabled = true;
+      sendChatBtn.textContent = "...";
+      
+      try {
+        const res = await fetch(`${API_BASE}/smart/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: msg })
+        });
+        const data = await res.json();
+        
+        if (res.ok) {
+          appendChatMsg(data.response, false);
+        } else {
+          appendChatMsg(`Error: ${data.error}`, false);
+        }
+      } catch (err) {
+        appendChatMsg(`Error: ${err.message}`, false);
+      } finally {
+        sendChatBtn.disabled = false;
+        sendChatBtn.textContent = "Send";
+      }
+    };
+
+    sendChatBtn.addEventListener("click", handleChatSend);
+    chatInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") handleChatSend();
+    });
+  }
+
+  // Initialize the Autonomous Agent Console bindings
+  await initAgentConsole();
+}
+
+let agentTemplates = {};
+let originalVerilog = "";
+
+async function initAgentConsole() {
+  const runAgentBtn = document.getElementById("runAgentBtn");
+  const agentLogs = document.getElementById("agentLogs");
+  const agentCodeEditor = document.getElementById("agentCodeEditor");
+  const agentGoal = document.getElementById("agentGoal");
+  const agentConsoleCard = document.getElementById("agentConsoleCard");
+  const agentDiffPanel = document.getElementById("agentDiffPanel");
+  const diffOriginal = document.getElementById("diffOriginal");
+  const diffCorrected = document.getElementById("diffCorrected");
+  const resetCodeTemplate = document.getElementById("resetCodeTemplate");
+  
+  // Load templates from endpoint
+  try {
+    const res = await fetch(`${API_BASE}/agent/templates`);
+    if (res.ok) {
+      agentTemplates = await res.json();
+    }
+  } catch(e) {
+    console.error("Failed to load agent templates", e);
+  }
+  
+  // Setup quick selects
+  document.querySelectorAll(".template-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const type = btn.getAttribute("data-template");
+      const tmpl = agentTemplates[type];
+      if (tmpl) {
+        agentCodeEditor.value = tmpl.code;
+        agentGoal.value = tmpl.goal;
+        originalVerilog = tmpl.code;
+        
+        // Auto-select corresponding checker in selector dropdown
+        const select = document.getElementById("checkerSelect");
+        if (select) {
+          select.value = type;
+          // Trigger change event to update matching checker parameters
+          select.dispatchEvent(new Event("change"));
+        }
+        
+        // Hide previous diff panel
+        agentDiffPanel.style.display = "none";
+        
+        // Clear logs to default template status
+        agentLogs.innerHTML = `
+          <div class="agent-log-item" style="color: var(--text-muted);">
+            <span class="log-bullet" style="color: var(--status-waiting);">*</span>
+            <span class="log-text">Template loaded. Ready to initiate autonomous debug verification loop.</span>
+          </div>`;
+      }
+    });
+  });
+
+  resetCodeTemplate.addEventListener("click", () => {
+    const checker = selectedChecker();
+    const tmpl = agentTemplates[checker];
+    if (tmpl) {
+      agentCodeEditor.value = tmpl.code;
+      originalVerilog = tmpl.code;
+      agentDiffPanel.style.display = "none";
+    }
+  });
+
+  runAgentBtn.addEventListener("click", async () => {
+    const goal = agentGoal.value.trim();
+    const code = agentCodeEditor.value.trim();
+    const checker = selectedChecker();
+    const apiKey = document.getElementById("agentApiKey").value.trim();
+    
+    if (!goal || !code) {
+      alert("Please define a verification goal and write or select Verilog code first.");
+      return;
+    }
+    
+    // Clear existing logs
+    agentLogs.innerHTML = "";
+    agentDiffPanel.style.display = "none";
+    originalVerilog = code; // Lock original code for comparison
+    
+    // Add pulsing neon agent state glow
+    agentConsoleCard.classList.add("agent-running-glow");
+    runAgentBtn.disabled = true;
+    runAgentBtn.innerHTML = `<span>Running</span> Verification loop active...`;
+    
+    const appendLog = (type, text) => {
+      const item = document.createElement("div");
+      item.className = `agent-log-item ${type}`;
+      
+      let bulletColor = "var(--accent-primary)";
+      if (type === "log-thought") bulletColor = "var(--accent-primary)";
+      else if (type === "log-tool") bulletColor = "var(--accent-secondary)";
+      else if (type === "log-code") bulletColor = "var(--status-ok)";
+      else if (type === "log-error") bulletColor = "var(--status-err)";
+      else if (type === "log-finish") bulletColor = "var(--status-ok)";
+      
+      item.innerHTML = `
+        <span class="log-bullet" style="color: ${bulletColor};">*</span>
+        <span class="log-text">${text}</span>
+      `;
+      agentLogs.appendChild(item);
+      // Auto-scroll log viewport
+      agentLogs.parentElement.scrollTop = agentLogs.parentElement.scrollHeight;
+    };
+    
+    appendLog("log", "Establishing session with autonomous verifier agent...");
+    
+    try {
+      const sessionRes = await fetch(`${API_BASE}/agent/session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, checker, goal, api_key: apiKey })
+      });
+      
+      const sessionData = await sessionRes.json();
+      if (!sessionRes.ok) {
+        throw new Error(sessionData.error || "Failed to initialize agent session");
+      }
+      
+      const sessionId = sessionData.session_id;
+      appendLog("log", `Session established (ID: ${sessionId}). Connecting EventSource stream...`);
+      
+      const eventSource = new EventSource(`${API_BASE}/agent/run/${sessionId}`);
+      
+      eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        
+        switch (data.type) {
+          case "start":
+            appendLog("log", `Agent Core: ${data.message}`);
+            break;
+            
+          case "log":
+            appendLog("log", `[Step ${data.step}] ${data.message}`);
+            break;
+            
+          case "thought":
+            appendLog("log-thought", `<strong>Reasoning & Plan:</strong><br>${data.message}`);
+            break;
+            
+          case "tool_call":
+            appendLog("log-tool", `Executing tool: <strong>${data.tool}</strong>`);
+            break;
+            
+          case "tool_response":
+            const isSuccess = data.response.includes("SUCCESS") || data.response.includes("passed");
+            const classType = isSuccess ? "log-code" : (data.response.includes("FAILURE") || data.response.includes("COMPLETED WITH MISMATCHES") ? "log-error" : "log");
+            appendLog(classType, `Tool Output (${data.tool}):<br><pre style="margin: 4px 0 0 0; font-size: 0.8rem; overflow-x: auto; font-family: monospace;">${data.response}</pre>`);
+            break;
+            
+          case "code_change":
+            appendLog("log-code", `Code updated. Diff generated in editor.`);
+            agentCodeEditor.value = data.code;
+            break;
+            
+          case "error":
+            appendLog("log-error", `Execution Failure: ${data.message}`);
+            eventSource.close();
+            cleanup();
+            break;
+            
+          case "finish":
+            appendLog("log-finish", `${data.message}`);
+            eventSource.close();
+            
+            // Populate and expose code diff structures
+            diffOriginal.textContent = originalVerilog;
+            diffCorrected.textContent = data.code;
+            agentDiffPanel.style.display = "block";
+            
+            // Force editor updates
+            agentCodeEditor.value = data.code;
+            
+            // Auto-refresh main waveform viewer
+            const sim = data.sim_result || {};
+            if (sim.success && sim.vcd) {
+              const parsedVcd = parseVCD(sim.vcd);
+              renderWaveform(parsedVcd, sim.verify_results?.errors || []);
+              showResult(sim.verify_results || {});
+            }
+            
+            cleanup();
+            break;
+        }
+      };
+      
+      eventSource.onerror = (err) => {
+        console.error("SSE Disconnect:", err);
+        appendLog("log-error", "Connection lost. Checking for agent exit code...");
+        eventSource.close();
+        cleanup();
+      };
+      
+    } catch (err) {
+      appendLog("log-error", `Error: ${err.message}`);
+      cleanup();
+    }
+    
+    function cleanup() {
+      agentConsoleCard.classList.remove("agent-running-glow");
+      runAgentBtn.disabled = false;
+      runAgentBtn.innerHTML = `<span>Start</span> Initiate Autonomous Debug Loop`;
+    }
+  });
+  
+  // Set default buggy example
+  setTimeout(() => {
+    const andBtn = document.querySelector('.template-btn[data-template="AND"]');
+    if (andBtn) andBtn.click();
+  }, 500);
 }
 
 window.addEventListener("DOMContentLoaded", init);
+
