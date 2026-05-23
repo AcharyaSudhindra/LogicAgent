@@ -1,5 +1,13 @@
+import os
 import difflib
 from typing import List, Dict, Any
+
+try:
+    from google import genai
+    from google.genai import types
+    HAS_GENAI = True
+except ImportError:
+    HAS_GENAI = False
 
 def suggest_signal_mapping(available_signals: List[str], checker: str) -> Dict[str, str]:
     """
@@ -109,3 +117,39 @@ def explain_verification_errors(checker: str, errors: List[Dict[str, Any]]) -> s
         lines.append(f"\n*Smart Hint for Combinational Logic*: For the {checker} gate, double-check that the inputs transition exactly when the output does, or account for propagation delays if this is a gate-level simulation.")
 
     return "\n".join(lines)
+
+
+def analyze_debug_artifact(file_bytes: bytes, mime_type: str) -> str:
+    """
+    Sends the provided artifact (image or text) to Gemini to analyze and suggest debug steps.
+    """
+    if not HAS_GENAI:
+        return "Error: The `google-genai` library is not installed. Please run `pip install google-genai` to use this feature."
+        
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return "Error: GEMINI_API_KEY environment variable is not set. Please set it to use the Debug Assistant."
+        
+    try:
+        client = genai.Client(api_key=api_key)
+        
+        prompt = (
+            "You are an expert RTL Debug Assistant. Analyze the provided waveform screenshot or error log. "
+            "Provide likely root causes, testbench hints, and next debug steps. Keep your response concise and technical, formatted in Markdown."
+        )
+        
+        # We pass the bytes directly to Gemini 
+        # using the types.Part.from_bytes utility
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[
+                types.Part.from_bytes(
+                    data=file_bytes,
+                    mime_type=mime_type,
+                ),
+                prompt
+            ]
+        )
+        return response.text
+    except Exception as e:
+        return f"Error communicating with Gemini: {str(e)}"

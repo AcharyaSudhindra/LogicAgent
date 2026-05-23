@@ -35,6 +35,22 @@ let timeOffset = 0;
 let isPanning = false;
 let startPanX = 0;
 
+function initSpotlight() {
+  const captures = document.querySelectorAll('.glow-capture');
+  captures.forEach(capture => {
+    capture.addEventListener('mousemove', (e) => {
+      const elements = capture.querySelectorAll('.glow-element');
+      elements.forEach(el => {
+        const rect = el.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        el.style.setProperty('--mouse-x', `${x}px`);
+        el.style.setProperty('--mouse-y', `${y}px`);
+      });
+    });
+  });
+}
+
 function appendTransition(transitions, signal, time, value) {
   if (!transitions[signal]) transitions[signal] = [];
   const arr = transitions[signal];
@@ -320,14 +336,14 @@ function renderWaveform(parsed, errors = []) {
 
     svg.appendChild(createSvgEl("text", {
       x: 14, y: yBase - 4,
-      fill: sigErr ? "#ff5d73" : "#e5edf8",
+      fill: sigErr ? "var(--status-err)" : "var(--text-main)",
       "font-size": 13,
       "font-weight": sigErr ? 700 : 500
     })).textContent = sig;
 
     svg.appendChild(createSvgEl("line", {
       x1: left, y1: yLow, x2: width - right, y2: yLow,
-      stroke: "var(--line)", "stroke-width": 1
+      stroke: "var(--panel-border)", "stroke-width": 1
     }));
 
     const arr = transitions[sig] || [];
@@ -349,7 +365,7 @@ function renderWaveform(parsed, errors = []) {
         x1: xOf(t0), y1: y0, x2: xOf(t1), y2: y0,
         stroke: sigErr ? "var(--svg-line-err)" : "var(--svg-line-ok)",
         "stroke-width": 2,
-        class: "animated-waveform-line"
+        class: "waveform-line"
       }));
 
       if (y1 !== y0) {
@@ -357,7 +373,7 @@ function renderWaveform(parsed, errors = []) {
           x1: xOf(t1), y1: y0, x2: xOf(t1), y2: y1,
           stroke: sigErr ? "var(--svg-line-err)" : "var(--svg-line-ok)",
           "stroke-width": 2,
-          class: "animated-waveform-line"
+          class: "waveform-line"
         }));
       }
     }
@@ -367,8 +383,8 @@ function renderWaveform(parsed, errors = []) {
   svg.appendChild(catchArea);
 
   const crosshairGroup = createSvgEl("g", { id: "crosshair", style: "display: none;" });
-  const crosshairLine = createSvgEl("line", { x1: 0, y1: 0, x2: 0, y2: height, stroke: "#4f8cff", "stroke-width": 1, "stroke-dasharray": "4 4" });
-  const crosshairText = createSvgEl("text", { x: 5, y: 15, fill: "#e5edf8", "font-size": 12, "font-weight": "bold" });
+  const crosshairLine = createSvgEl("line", { x1: 0, y1: 0, x2: 0, y2: height, stroke: "var(--accent-primary)", "stroke-width": 1, "stroke-dasharray": "4 4" });
+  const crosshairText = createSvgEl("text", { x: 5, y: 15, fill: "var(--text-main)", "font-size": 12, "font-weight": "bold" });
   crosshairGroup.appendChild(crosshairLine);
   crosshairGroup.appendChild(crosshairText);
   svg.appendChild(crosshairGroup);
@@ -396,13 +412,17 @@ function renderWaveform(parsed, errors = []) {
 
 function showResult(data) {
   const verdictEl = document.getElementById("verdict");
+  const verdictBanner = document.getElementById("verdictBanner");
   const errorList = document.getElementById("errorList");
+  const errorListContainer = document.getElementById("errorListContainer");
   const metrics = document.getElementById("metrics");
   const explainBtn = document.getElementById("explainBtn");
   const explanationBox = document.getElementById("explanationBox");
 
-  verdictEl.textContent = `Verdict: ${data.verdict}`;
-  verdictEl.className = data.verdict === "Correct" ? "ok" : "bad";
+  verdictEl.textContent = `${data.verdict}`;
+  if (verdictBanner) {
+    verdictBanner.className = "verdict-banner " + (data.verdict === "Correct" ? "ok" : "bad");
+  }
 
   if (explanationBox) {
     explanationBox.style.display = "none";
@@ -413,14 +433,15 @@ function showResult(data) {
   const errors = data.errors || [];
   
   if (explainBtn) {
-    explainBtn.style.display = errors.length > 0 ? "inline-block" : "none";
+    explainBtn.style.display = errors.length > 0 ? "flex" : "none";
+  }
+
+  if (errorListContainer) {
+    errorListContainer.style.display = errors.length > 0 ? "block" : "none";
   }
 
   if (!errors.length) {
-    const li = document.createElement("li");
-    li.textContent = "No mismatches found.";
-    li.className = "ok";
-    errorList.appendChild(li);
+    // No errors
   } else {
     errors.forEach(err => {
       const li = document.createElement("li");
@@ -433,7 +454,7 @@ function showResult(data) {
   const signalCount = data.signals_found?.length ?? Object.keys(data.signals || {}).length ?? 0;
   const resolved = data.summary?.resolved_signals ? JSON.stringify(data.summary.resolved_signals) : "{}";
 
-  metrics.innerHTML = `<span>Checker: ${data.checker || "LOCAL"}</span><span>Errors: ${errors.length}</span><span>Checked points/edges: ${checked}</span><span>Signals: ${signalCount}</span><span>Resolved: ${resolved}</span>`;
+  metrics.innerHTML = `<span><strong>Checker:</strong> ${data.checker || "LOCAL"}</span><span><strong>Errors:</strong> ${errors.length}</span><span><strong>Checked:</strong> ${checked}</span><span><strong>Signals:</strong> ${signalCount}</span>`;
 }
 
 function selectedChecker() {
@@ -512,6 +533,7 @@ function runLocal() {
 }
 
 async function init() {
+  initSpotlight();
   const fileInput = document.getElementById("fileInput");
   const sampleBox = document.getElementById("sampleBox");
   const themeToggleBtn = document.getElementById("themeToggleBtn");
@@ -576,6 +598,8 @@ async function init() {
   fileInput.addEventListener("change", async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const btnText = document.querySelector(".file-upload-btn");
+    if(btnText) btnText.textContent = file.name;
     currentText = await file.text();
   });
 
@@ -660,6 +684,50 @@ async function init() {
         alert("Failed to fetch explanation");
       } finally {
         explainBtn.textContent = "Explain Error";
+      }
+    });
+  }
+
+  const debugAnalyzeBtn = document.getElementById("debugAnalyzeBtn");
+  if (debugAnalyzeBtn) {
+    debugAnalyzeBtn.addEventListener("click", async () => {
+      const fileInput = document.getElementById("debugArtifactInput");
+      const outputBox = document.getElementById("debugOutputBox");
+      const file = fileInput.files?.[0];
+      
+      if (!file) {
+        alert("Please select an image or text file first.");
+        return;
+      }
+      
+      const btnText = document.querySelector(".debug-file-input");
+      if(btnText && file.name) btnText.title = file.name;
+
+      debugAnalyzeBtn.textContent = "Analyzing...";
+      outputBox.style.display = "none";
+      
+      const formData = new FormData();
+      formData.append("file", file);
+      
+      try {
+        const res = await fetch(`${API_BASE}/smart/debug_assistant`, {
+          method: "POST",
+          body: formData
+        });
+        const data = await res.json();
+        
+        outputBox.style.display = "block";
+        if (res.ok) {
+          outputBox.textContent = data.analysis || "No analysis returned.";
+        } else {
+          outputBox.textContent = `Error: ${data.error || "Failed to analyze artifact."}`;
+        }
+      } catch (err) {
+        console.error(err);
+        outputBox.style.display = "block";
+        outputBox.textContent = `Error: ${err.message}`;
+      } finally {
+        debugAnalyzeBtn.textContent = "Ask Debug Assistant";
       }
     });
   }

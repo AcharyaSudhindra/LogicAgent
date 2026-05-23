@@ -1,4 +1,4 @@
-﻿# AI Testbench Verifier
+# AI Testbench Verifier
 
 Powerful VCD waveform verification platform for logic and sequential checks, with Vivado-compatible signal mapping.
 
@@ -17,8 +17,13 @@ Powerful VCD waveform verification platform for logic and sequential checks, wit
 - Frontend waveform viewer with mismatch highlighting
 
 ## Run
+
+### Option 1: Single Click (Windows)
+Just double-click the `run.bat` file! It will install dependencies, prompt you for an optional API key, start the server, and open your browser automatically.
+
+### Option 2: Manual
 ```powershell
-pip install flask
+pip install flask google-genai
 python app.py
 ```
 Open: `http://127.0.0.1:5000/`

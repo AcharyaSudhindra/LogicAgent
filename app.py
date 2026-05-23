@@ -11,7 +11,7 @@ from backend import (
     get_checker_definitions,
 )
 
-from backend.smart_engine import suggest_signal_mapping, explain_verification_errors
+from backend.smart_engine import suggest_signal_mapping, explain_verification_errors, analyze_debug_artifact
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
@@ -165,6 +165,27 @@ def smart_explain_error():
     
     explanation = explain_verification_errors(checker, errors)
     return jsonify({"explanation": explanation})
+
+
+@app.route("/smart/debug_assistant", methods=["POST", "OPTIONS"])
+def smart_debug_assistant():
+    if request.method == "OPTIONS":
+        return jsonify({"ok": True}), 200
+        
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+        
+    uploaded = request.files["file"]
+    if uploaded.filename == "":
+        return jsonify({"error": "No selected file."}), 400
+        
+    file_bytes = uploaded.read()
+    mime_type = uploaded.mimetype
+    if not mime_type:
+        mime_type = "text/plain" # fallback
+        
+    analysis = analyze_debug_artifact(file_bytes, mime_type)
+    return jsonify({"analysis": analysis})
 
 
 @app.route("/health", methods=["GET"])

@@ -7,58 +7,124 @@
   <link rel="stylesheet" href="static/css/styles.css" />
 </head>
 <body>
-  <div class="container">
-    <section class="card">
-      <div class="header-row">
-        <div>
-          <h1>Waveform Verification Platform</h1>
-          <p class="subtitle">Vivado-ready VCD verification with multi-checker engine and signal alias mapping</p>
+  <div class="dashboard">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-box">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
         </div>
-        <button id="themeToggleBtn" class="theme-toggle" title="Toggle Light/Dark Mode">☾</button>
+        <div>
+          <h1 class="app-title">AI Testbench<br>Verifier</h1>
+        </div>
       </div>
-    </section>
 
-    <section class="card controls">
-      <input id="fileInput" type="file" accept=".vcd" />
-      <select id="checkerSelect"></select>
-      <input id="customAssertion" type="text" placeholder="e.g. req -> next(ack) or a == 1" style="display: none; width: 100%; margin-top: 10px;" />
-      <button id="runLocalBtn" class="secondary">Run Local Verify</button>
-      <button id="runBackendBtn">Run Backend Verify</button>
-      <button id="loadSampleBtn" class="secondary">Load Sample</button>
-    </section>
-
-    <section class="card">
-      <div class="header-row" style="margin-bottom: 5px;">
-        <h3 style="margin: 0;">Signal Mapping (optional, for Vivado hierarchy)</h3>
-        <button id="autoMapBtn" class="secondary" style="padding: 6px 12px; font-size: 0.9em;">Auto Map (Smart)</button>
+      <div class="control-group">
+        <h3 class="section-title">1. Upload Waveform</h3>
+        <label class="file-upload-wrapper">
+          <input id="fileInput" type="file" accept=".vcd" />
+          <span class="file-upload-btn">Browse VCD File</span>
+        </label>
+        <button id="loadSampleBtn" class="tertiary-btn">Use Sample VCD</button>
       </div>
-      <p class="subtitle small">Map canonical names to VCD signal names. Example: <code>tb/dut/a</code>, <code>tb.dut.q</code>.</p>
-      <div class="mapping-grid" id="mappingGrid">
-        <!-- Populated dynamically based on selected checker -->
-      </div>
-    </section>
 
-    <section class="card">
-      <div class="header-row">
-        <div id="verdict">Verdict: Waiting for input</div>
-        <button id="explainBtn" style="display: none; background-color: var(--primary); color: white;">Explain Error</button>
+      <div class="control-group">
+        <h3 class="section-title">2. Select Checker</h3>
+        <select id="checkerSelect"></select>
+        <input id="customAssertion" type="text" placeholder="e.g. req -> next(ack) or a == 1" style="display: none;" />
       </div>
-      <div id="explanationBox" style="display: none; background: var(--bg); padding: 12px; border-radius: 6px; margin-top: 10px; margin-bottom: 10px; white-space: pre-wrap; font-size: 0.9em; border: 1px solid var(--border);"></div>
-      <ul id="errorList"></ul>
-      <div id="metrics"></div>
-    </section>
 
-    <section class="card">
-      <h3>Waveform Viewer</h3>
-      <div id="waveformWrap">
-        <svg id="waveformSvg" width="1100" height="350"></svg>
+      <div class="control-group">
+        <div class="header-row" style="margin-bottom: 10px;">
+          <h3 class="section-title" style="margin: 0;">3. Signal Mapping</h3>
+          <button id="autoMapBtn" class="icon-btn" title="Smart Auto Map">✨ Auto</button>
+        </div>
+        <div class="mapping-grid" id="mappingGrid">
+          <!-- Populated dynamically -->
+        </div>
       </div>
-    </section>
 
-    <section class="card">
-      <h3>Sample VCD</h3>
-      <pre id="sampleBox"></pre>
-    </section>
+      <div class="action-buttons">
+        <button id="runLocalBtn" class="primary-btn outline">Run Local Check</button>
+        <button id="runBackendBtn" class="primary-btn glow">Run AI Verification</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Top Navbar -->
+      <nav class="top-nav">
+        <div class="nav-left">
+          <span class="nav-subtitle">Vivado-ready verification with smart multi-checker engine</span>
+        </div>
+        <div class="nav-right">
+          <button id="themeToggleBtn" class="theme-toggle" title="Toggle Light/Dark Mode">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+          </button>
+        </div>
+      </nav>
+
+      <div class="content-scroll glow-capture" id="mainScroll">
+        <div class="bento-grid">
+          
+          <!-- Verdict Banner -->
+          <div class="verdict-banner waiting bento-item bento-full" id="verdictBanner">
+            <div class="verdict-status">
+              <div class="status-indicator"></div>
+              <h2 id="verdict">Waiting for input</h2>
+            </div>
+            <button id="explainBtn" class="explain-btn" style="display: none;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+              Explain Error
+            </button>
+          </div>
+
+          <div id="explanationBox" class="explanation-box bento-item bento-full" style="display: none;"></div>
+
+          <!-- Metrics Container -->
+          <div class="panel glow-element bento-item" id="metricsPanel">
+            <h3 class="panel-title">Verification Metrics</h3>
+            <div class="metrics-container" id="metrics">
+              <!-- Metrics injected here -->
+            </div>
+          </div>
+
+          <!-- Error List Container -->
+          <div id="errorListContainer" class="panel glow-element bento-item" style="display: none;">
+            <h3 class="panel-title">Mismatches & Errors</h3>
+            <ul id="errorList"></ul>
+          </div>
+
+          <!-- Waveform Viewer -->
+          <div class="panel glow-element waveform-panel bento-item bento-full">
+            <h3 class="panel-title">Logic Analyzer</h3>
+            <div id="waveformWrap">
+              <svg id="waveformSvg" width="100%" height="350"></svg>
+            </div>
+          </div>
+
+          <!-- AI Debug Assistant -->
+          <div class="panel glow-element debug-panel bento-item bento-full" id="debugAssistantCard">
+            <div class="header-row">
+              <h3 class="panel-title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                RTL Debug Assistant
+              </h3>
+            </div>
+            <p class="panel-subtitle">Upload a waveform screenshot or error log to get root cause analysis.</p>
+            <div class="debug-controls">
+              <input type="file" id="debugArtifactInput" accept="image/*,.txt,.log" class="debug-file-input" />
+              <button id="debugAnalyzeBtn" class="primary-btn glow">Analyze Artifact</button>
+            </div>
+            <div id="debugOutputBox" class="explanation-box" style="display: none; margin-top: 16px;"></div>
+          </div>
+
+        </div>
+        
+        <!-- Hidden sample box to avoid breaking JS -->
+        <pre id="sampleBox" style="display: none;"></pre>
+      </div>
+    </main>
   </div>
 
   <script src="static/js/app.js"></script>
