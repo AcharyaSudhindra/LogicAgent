@@ -216,7 +216,8 @@ def smart_debug_assistant():
     if not mime_type:
         mime_type = "text/plain" # fallback
         
-    analysis = analyze_debug_artifact(file_bytes, mime_type)
+    api_key = request.form.get("api_key", "")
+    analysis = analyze_debug_artifact(file_bytes, mime_type, api_key)
     return jsonify({"analysis": analysis})
 
 
@@ -227,10 +228,11 @@ def smart_chat():
         
     data = request.json or {}
     message = data.get("message", "")
+    api_key = data.get("api_key", "")
     if not message:
         return jsonify({"error": "No message provided."}), 400
         
-    response = chat_with_agent(message)
+    response = chat_with_agent(message, api_key)
     return jsonify({"response": response})
 
 

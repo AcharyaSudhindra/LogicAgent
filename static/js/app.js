@@ -557,6 +557,14 @@ async function init() {
     }
   });
 
+  const globalApiKeyInput = document.getElementById("globalApiKey");
+  if (globalApiKeyInput) {
+    globalApiKeyInput.value = localStorage.getItem("geminiApiKey") || "";
+    globalApiKeyInput.addEventListener("input", (e) => {
+      localStorage.setItem("geminiApiKey", e.target.value.trim());
+    });
+  }
+
   const wrap = document.getElementById("waveformWrap");
   wrap.addEventListener("wheel", (e) => {
     if (!currentParsed) return;
@@ -645,7 +653,7 @@ async function init() {
         const res = await fetch(`${API_BASE}/smart/map_signals`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ signals, checker })
+          body: JSON.stringify({ signals, checker, api_key: document.getElementById("globalApiKey")?.value.trim() })
         });
         const data = await res.json();
         if (data.mapping) {
@@ -696,7 +704,7 @@ async function init() {
         const mapRes = await fetch(`${API_BASE}/smart/map_signals`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ signals: data.signals, checker })
+          body: JSON.stringify({ signals: data.signals, checker, api_key: document.getElementById("globalApiKey")?.value.trim() })
         });
         
         const mapData = await mapRes.json();
@@ -729,7 +737,7 @@ async function init() {
         const res = await fetch(`${API_BASE}/smart/explain_error`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ checker: selectedChecker(), errors: currentErrors })
+          body: JSON.stringify({ checker: selectedChecker(), errors: currentErrors, api_key: document.getElementById("globalApiKey")?.value.trim() })
         });
         const data = await res.json();
         explanationBox.style.display = "block";
@@ -763,6 +771,7 @@ async function init() {
       
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("api_key", document.getElementById("globalApiKey")?.value.trim() || "");
       
       try {
         const res = await fetch(`${API_BASE}/smart/debug_assistant`, {
@@ -836,15 +845,6 @@ async function init() {
     const appendChatMsg = (text, isUser) => {
       const msgDiv = document.createElement("div");
       msgDiv.className = `chat-msg ${isUser ? 'user-msg' : 'bot-msg'}`;
-      msgDiv.style.alignSelf = isUser ? 'flex-end' : 'flex-start';
-      msgDiv.style.background = isUser ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 229, 255, 0.1)';
-      msgDiv.style.borderLeft = isUser ? 'none' : '2px solid var(--accent-primary)';
-      msgDiv.style.borderRight = isUser ? '2px solid var(--text-main)' : 'none';
-      msgDiv.style.padding = '10px 14px';
-      msgDiv.style.borderRadius = isUser ? '8px 8px 0 8px' : '8px 8px 8px 0';
-      msgDiv.style.maxWidth = '80%';
-      msgDiv.style.color = 'var(--text-main)';
-      msgDiv.style.fontSize = '0.9rem';
       if (typeof marked !== 'undefined') {
         msgDiv.innerHTML = marked.parse(text);
       } else {
@@ -868,7 +868,7 @@ async function init() {
         const res = await fetch(`${API_BASE}/smart/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: msg })
+          body: JSON.stringify({ message: msg, api_key: document.getElementById("globalApiKey")?.value.trim() })
         });
         const data = await res.json();
         
@@ -964,7 +964,7 @@ async function initAgentConsole() {
     const goal = agentGoal.value.trim();
     const code = agentCodeEditor.value.trim();
     const checker = selectedChecker();
-    const apiKey = document.getElementById("agentApiKey").value.trim();
+    const apiKey = document.getElementById("globalApiKey")?.value.trim() || "";
     
     if (!goal || !code) {
       alert("Please define a verification goal and write or select Verilog code first.");

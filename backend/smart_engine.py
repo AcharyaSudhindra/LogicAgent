@@ -119,14 +119,14 @@ def explain_verification_errors(checker: str, errors: List[Dict[str, Any]]) -> s
     return "\n".join(lines)
 
 
-def analyze_debug_artifact(file_bytes: bytes, mime_type: str) -> str:
+def analyze_debug_artifact(file_bytes: bytes, mime_type: str, user_api_key: str = "") -> str:
     """
     Sends the provided artifact (image or text) to Gemini to analyze and suggest debug steps.
     """
     if not HAS_GENAI:
         return "Error: The `google-genai` library is not installed. Please run `pip install google-genai` to use this feature."
         
-    api_key = os.environ.get("GEMINI_API_KEY")
+    api_key = user_api_key or os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return "Error: GEMINI_API_KEY environment variable is not set. Please set it to use the Debug Assistant."
         
@@ -154,14 +154,14 @@ def analyze_debug_artifact(file_bytes: bytes, mime_type: str) -> str:
     except Exception as e:
         return f"Error communicating with Gemini: {str(e)}"
 
-def chat_with_agent(message: str) -> str:
+def chat_with_agent(message: str, user_api_key: str = "") -> str:
     """
     Sends a chat message to Gemini and returns the response.
     """
     if not HAS_GENAI:
         return "Error: The `google-genai` library is not installed. Please run `pip install google-genai` to use this feature."
         
-    api_key = os.environ.get("GEMINI_API_KEY")
+    api_key = user_api_key or os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return "Error: GEMINI_API_KEY environment variable is not set. Please set it to use the Chatbot."
         

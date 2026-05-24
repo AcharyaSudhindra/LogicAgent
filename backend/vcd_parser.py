@@ -1,4 +1,4 @@
-﻿from typing import Dict, List, Any
+from typing import Dict, List, Any
 
 
 def append_transition(transitions: Dict[str, List[Dict[str, Any]]], signal: str, t: int, value: str) -> None:
@@ -42,6 +42,9 @@ def parse_vcd_text(vcd_text: str, default_timescale: str = "1ns") -> Dict[str, A
         if collecting_timescale:
             if "$end" in line:
                 collecting_timescale = False
+                ts_part = line.replace("$end", "").strip()
+                if ts_part:
+                    timescale_buf.append(ts_part)
                 ts = " ".join(timescale_buf).strip()
                 if ts:
                     timescale = ts

@@ -3,12 +3,18 @@
 :root {
   /* Ultra-Modern Tool Theme */
   --bg-main: #030303;
+  --bg-gradient-start: #1a1a2e;
   --bg-sidebar: rgba(10, 10, 12, 0.7);
   --panel-bg: rgba(20, 20, 24, 0.5);
   --panel-border: rgba(255, 255, 255, 0.06);
   --text-main: #f8fafc;
   --text-muted: #8b9bb4;
   
+  --chat-user-bg: rgba(255, 255, 255, 0.1);
+  --chat-bot-bg: rgba(0, 229, 255, 0.1);
+  --chat-th-bg: rgba(255, 255, 255, 0.05);
+  --chat-code-bg: rgba(0, 0, 0, 0.3);
+
   --accent-primary: #00e5ff; /* Hyper Cyan */
   --accent-secondary: #bd00ff; /* Hyper Purple */
   --accent-glow: 0 0 25px rgba(0, 229, 255, 0.3);
@@ -35,12 +41,18 @@
 
 [data-theme="light"] {
   --bg-main: #f4f6fa;
+  --bg-gradient-start: #dbeafe;
   --bg-sidebar: rgba(255, 255, 255, 0.8);
   --panel-bg: rgba(255, 255, 255, 0.7);
   --panel-border: rgba(0, 0, 0, 0.05);
   --text-main: #0a0a0c;
   --text-muted: #6b7280;
   
+  --chat-user-bg: rgba(0, 0, 0, 0.05);
+  --chat-bot-bg: rgba(0, 102, 255, 0.1);
+  --chat-th-bg: rgba(0, 0, 0, 0.04);
+  --chat-code-bg: rgba(0, 0, 0, 0.04);
+
   --accent-primary: #0066ff; 
   --accent-secondary: #8b5cf6; 
   --accent-glow: 0 4px 15px rgba(0, 102, 255, 0.2);
@@ -60,7 +72,7 @@ body {
   margin: 0;
   font-family: 'Plus Jakarta Sans', sans-serif;
   color: var(--text-main);
-  background: radial-gradient(circle at 50% -20%, #1a1a2e, var(--bg-main) 70%);
+  background: radial-gradient(circle at 50% -20%, var(--bg-gradient-start), var(--bg-main) 70%);
   background-size: 200% 200%;
   animation: bgDrift 15s ease infinite alternate;
   min-height: 100vh;
@@ -79,6 +91,25 @@ p, li, .panel-subtitle, .log-text, .chat-msg, .metrics-container span {
 }
 
 /* Markdown styling inside chat */
+.chat-msg {
+  padding: 10px 14px;
+  max-width: 80%;
+  color: var(--text-main);
+  font-size: 0.9rem;
+}
+.user-msg {
+  align-self: flex-end;
+  background: var(--chat-user-bg);
+  border-right: 2px solid var(--text-main);
+  border-radius: 8px 8px 0 8px;
+}
+.bot-msg {
+  align-self: flex-start;
+  background: var(--chat-bot-bg);
+  border-left: 2px solid var(--accent-primary);
+  border-radius: 8px 8px 8px 0;
+}
+
 .chat-msg table {
   border-collapse: collapse;
   width: 100%;
@@ -90,17 +121,17 @@ p, li, .panel-subtitle, .log-text, .chat-msg, .metrics-container span {
   text-align: left;
 }
 .chat-msg th {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--chat-th-bg);
 }
 .chat-msg pre {
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--chat-code-bg);
   padding: 10px;
   border-radius: 8px;
   overflow-x: auto;
 }
 .chat-msg code {
   font-family: 'JetBrains Mono', monospace;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--chat-code-bg);
   padding: 2px 4px;
   border-radius: 4px;
 }
