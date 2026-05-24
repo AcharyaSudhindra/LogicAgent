@@ -48,7 +48,7 @@ An interactive diagnostic tool where the AI analyzes waveform traces and provide
 
 **Contextual AI Chatbot**
 A built-in chat interface enabling hardware engineers to query design specifications and receive interactive guidance directly within the IDE.
-<p align="center"><img src="assets/chat.png" width="90%" /></p>
+<p align="center"><img src="assets/chatbot_demo.png" width="90%" /></p>
 
 ## Installation & Deployment
 
