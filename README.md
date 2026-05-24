@@ -1,4 +1,4 @@
-# LogicAgent AI
+# LogicAgent 
 
 **[🚀 Live Demo: Try LogicAgent Here!](https://logicagent.onrender.com)**
 LogicAgent AI is an advanced, automated waveform verification platform and autonomous RTL synthesis agent. The system combines deterministic Verilog behavioral simulation with a sophisticated Large Language Model (LLM) to iteratively generate, simulate, and formally verify digital logic circuits without requiring external Electronic Design Automation (EDA) toolchains.
