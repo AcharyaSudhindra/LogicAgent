@@ -1,4 +1,4 @@
-const API_BASE = "http://127.0.0.1:5000";
+const API_BASE = "";
 
 const SAMPLE_VCD = `$timescale 1ns $end
 $scope module tb $end
