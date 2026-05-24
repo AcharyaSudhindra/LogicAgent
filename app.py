@@ -1,6 +1,7 @@
 import json
 import uuid
 import os
+import xml.etree.ElementTree as ET
 from typing import Dict, Any, Tuple
 from flask import Flask, request, jsonify, send_from_directory, Response
 
@@ -119,6 +120,33 @@ def upload_vcd():
         "signal_map": signal_map,
         "supported_checkers": get_supported_checkers(),
     })
+@app.route("/upload_wcfg", methods=["POST", "OPTIONS"])
+def upload_wcfg():
+    if request.method == "OPTIONS":
+        return jsonify({"ok": True}), 200
+
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    uploaded = request.files["file"]
+    if uploaded.filename == "":
+        return jsonify({"error": "No selected file."}), 400
+
+    text = uploaded.read().decode("utf-8", errors="ignore")
+    if not text.strip():
+        return jsonify({"error": "Uploaded file is empty or unreadable."}), 400
+
+    signals = []
+    try:
+        root = ET.fromstring(text)
+        for wvobj in root.findall(".//wvobject"):
+            fp_name = wvobj.get("fp_name")
+            if fp_name:
+                signals.append(fp_name)
+    except Exception as e:
+        return jsonify({"error": f"Failed to parse WCFG: {str(e)}"}), 400
+
+    return jsonify({"signals": signals})
 
 
 @app.route("/visualize", methods=["POST", "OPTIONS"])

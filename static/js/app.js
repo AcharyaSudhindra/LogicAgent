@@ -1,4 +1,4 @@
-﻿const API_BASE = "http://127.0.0.1:5000";
+const API_BASE = "http://127.0.0.1:5000";
 
 const SAMPLE_VCD = `$timescale 1ns $end
 $scope module tb $end
@@ -664,6 +664,61 @@ async function init() {
     });
   }
 
+  const uploadWcfgBtn = document.getElementById("uploadWcfgBtn");
+  const wcfgInput = document.getElementById("wcfgInput");
+
+  if (uploadWcfgBtn && wcfgInput) {
+    uploadWcfgBtn.addEventListener("click", () => {
+      wcfgInput.click();
+    });
+
+    wcfgInput.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      uploadWcfgBtn.textContent = "Loading...";
+      try {
+        const res = await fetch(`${API_BASE}/upload_wcfg`, {
+          method: "POST",
+          body: formData
+        });
+        const data = await res.json();
+        
+        if (data.error) throw new Error(data.error);
+        if (!data.signals || data.signals.length === 0) {
+          throw new Error("No signals found in the WCFG file.");
+        }
+
+        const checker = selectedChecker();
+        const mapRes = await fetch(`${API_BASE}/smart/map_signals`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ signals: data.signals, checker })
+        });
+        
+        const mapData = await mapRes.json();
+        if (mapData.mapping) {
+          Object.entries(mapData.mapping).forEach(([k, v]) => {
+            const input = document.getElementById(`map_${k}`);
+            if (input) input.value = v;
+          });
+          runLocal();
+        } else {
+          alert("Parsed WCFG but failed to auto-map the signals.");
+        }
+      } catch (err) {
+        console.error(err);
+        alert(`Failed to load .wcfg: ${err.message}`);
+      } finally {
+        uploadWcfgBtn.textContent = "Load .wcfg";
+        wcfgInput.value = ""; // Reset input
+      }
+    });
+  }
+
   const explainBtn = document.getElementById("explainBtn");
   if (explainBtn) {
     explainBtn.addEventListener("click", async () => {
@@ -790,8 +845,11 @@ async function init() {
       msgDiv.style.maxWidth = '80%';
       msgDiv.style.color = 'var(--text-main)';
       msgDiv.style.fontSize = '0.9rem';
-      // simple markdown to html logic for bold/code blocks could go here, but textContent avoids XSS
-      msgDiv.textContent = text;
+      if (typeof marked !== 'undefined') {
+        msgDiv.innerHTML = marked.parse(text);
+      } else {
+        msgDiv.textContent = text;
+      }
       
       chatHistory.appendChild(msgDiv);
       chatHistory.scrollTop = chatHistory.scrollHeight;

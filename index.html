@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LogicAgent AI</title>
   <link rel="stylesheet" href="static/css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
   <div class="dashboard">
@@ -35,9 +36,13 @@
       </div>
 
       <div class="control-group">
-        <div class="header-row" style="margin-bottom: 10px;">
+        <div class="header-row" style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
           <h3 class="section-title" style="margin: 0;">3. Signal Mapping</h3>
-          <button id="autoMapBtn" class="icon-btn" title="Smart Auto Map">Auto Map</button>
+          <div style="display: flex; gap: 8px;">
+            <button id="uploadWcfgBtn" class="icon-btn" title="Load .wcfg file for mapping">Load .wcfg</button>
+            <input type="file" id="wcfgInput" accept=".wcfg" style="display: none;" />
+            <button id="autoMapBtn" class="icon-btn" title="Smart Auto Map">Auto Map</button>
+          </div>
         </div>
         <div class="mapping-grid" id="mappingGrid">
           <!-- Populated dynamically -->
