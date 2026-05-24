@@ -37,6 +37,10 @@ The central interface for uploading Value Change Dump (VCD) waveforms and evalua
 An autonomous LLM-driven loop that dynamically generates, compiles, and verifies Verilog logic to solve design goals.
 <p align="center"><img src="assets/agent.png" width="90%" /></p>
 
+**RTL Correction & Agent Log**
+Visualizes the AI's reasoning process and displays a side-by-side comparison of the original and corrected Verilog code during the autonomous debug loop.
+<p align="center"><img src="assets/rtl_correction_diff.png" width="90%" /></p>
+
 **RTL Debug Assistant**
 An interactive diagnostic tool where the AI analyzes waveform traces and provides granular root-cause analysis for verification failures.
 <p align="center"><img src="assets/debug.png" width="90%" /></p>
