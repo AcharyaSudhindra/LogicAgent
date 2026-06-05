@@ -335,7 +335,7 @@ export default function CodeLab() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-[#030303] text-slate-100 font-sans overflow-hidden">
+    <div className="flex flex-col h-screen bg-[#030304] text-slate-100 font-sans overflow-hidden">
 
       {/* ── Nav ─────────────────────────────────────────────────────────── */}
       <nav className="h-14 border-b border-white/5 flex items-center px-6 gap-4 bg-black/30 backdrop-blur-md flex-shrink-0 z-20">
@@ -347,14 +347,14 @@ export default function CodeLab() {
           <span className="font-bold text-base bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">LogicAgent</span>
         </Link>
 
-        <div className="flex items-center gap-1 ml-2">
+        <div className="flex items-center gap-1.5 ml-2">
           <Link href="/" className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all">
             <Code2 className="w-3.5 h-3.5" /> Verifier
           </Link>
           <Link href="/agent" className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all">
             <Bot className="w-3.5 h-3.5" /> Agent Studio
           </Link>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 font-medium">
             <Code className="w-3.5 h-3.5" /> Code Lab
           </div>
         </div>
@@ -371,7 +371,7 @@ export default function CodeLab() {
           {simBackend && (
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-mono ${
               simBackend === "iverilog"
-                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.05)]"
                 : "bg-amber-500/10 border-amber-500/20 text-amber-400"
             }`}>
               <Cpu className="w-3.5 h-3.5" />
@@ -388,21 +388,27 @@ export default function CodeLab() {
           {/* Editor panels */}
           <div className="flex flex-1 min-h-0 border-b border-white/5" style={{ height: "55%" }}>
 
-            {/* RTL Editor */}
+            {/* RTL Editor inside Mock IDE Frame */}
             <div className="flex flex-col w-1/2 border-r border-white/5 min-w-0">
-              <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-black/20 flex-shrink-0">
-                <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(0,229,255,0.6)]" />
-                <span className="text-xs font-semibold text-slate-300 font-mono">rtl.v</span>
-                <span className="text-xs text-slate-600 ml-1">— RTL Module</span>
+              <div className="flex items-center gap-4 px-4 py-3 border-b border-white/5 bg-zinc-950/60 flex-shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full window-dot-red block" />
+                  <span className="w-2.5 h-2.5 rounded-full window-dot-yellow block" />
+                  <span className="w-2.5 h-2.5 rounded-full window-dot-green block" />
+                </div>
+                <div className="flex items-center gap-1.5 text-xs font-mono font-semibold text-zinc-300">
+                  <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(6,182,212,0.6)]" />
+                  rtl.v <span className="text-zinc-600 font-sans font-normal">— RTL Design Module</span>
+                </div>
                 <button
                   onClick={() => setRtlCode("")}
-                  className="ml-auto text-slate-600 hover:text-slate-400 transition-colors"
-                  title="Clear"
+                  className="ml-auto text-zinc-600 hover:text-zinc-400 transition-colors cursor-pointer"
+                  title="Clear RTL code"
                 >
                   <RotateCcw className="w-3 h-3" />
                 </button>
               </div>
-              <div className="flex-1 min-h-0">
+              <div className="flex-1 min-h-0 bg-[#050507]">
                 <MonacoEditor
                   height="100%"
                   defaultLanguage="verilog"
@@ -415,7 +421,7 @@ export default function CodeLab() {
                     minimap: { enabled: false },
                     scrollBeyondLastLine: false,
                     lineNumbers: "on",
-                    padding: { top: 10, bottom: 10 },
+                    padding: { top: 12, bottom: 12 },
                     smoothScrolling: true,
                     renderLineHighlight: "all",
                   }}
@@ -423,34 +429,40 @@ export default function CodeLab() {
               </div>
             </div>
 
-            {/* Testbench Editor */}
+            {/* Testbench Editor inside Mock IDE Frame */}
             <div className="flex flex-col w-1/2 min-w-0">
-              <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-black/20 flex-shrink-0">
-                <div className="w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_6px_rgba(168,85,247,0.6)]" />
-                <span className="text-xs font-semibold text-slate-300 font-mono">tb.v</span>
-                <span className="text-xs text-slate-600 ml-1">— Testbench</span>
+              <div className="flex items-center gap-4 px-4 py-3 border-b border-white/5 bg-zinc-950/60 flex-shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full window-dot-red block" />
+                  <span className="w-2.5 h-2.5 rounded-full window-dot-yellow block" />
+                  <span className="w-2.5 h-2.5 rounded-full window-dot-green block" />
+                </div>
+                <div className="flex items-center gap-1.5 text-xs font-mono font-semibold text-zinc-300">
+                  <div className="w-1.5 h-1.5 rounded-full bg-purple-400 shadow-[0_0_6px_rgba(168,85,247,0.6)]" />
+                  tb.v <span className="text-zinc-600 font-sans font-normal">— Simulation Testbench</span>
+                </div>
                 <motion.button
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={generateTestbench}
                   disabled={isGeneratingTB || !rtlCode.trim()}
-                  className="ml-auto flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-300 hover:bg-purple-500/25 transition-all disabled:opacity-40 font-medium"
+                  className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-300 hover:bg-purple-500/25 transition-all disabled:opacity-40 font-semibold text-[11px] cursor-pointer"
                 >
                   {isGeneratingTB
-                    ? <><Loader2 className="w-3 h-3 animate-spin" /> Generating...</>
-                    : <><Sparkles className="w-3 h-3" /> AI Generate</>}
+                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Writing...</>
+                    : <><Sparkles className="w-3.5 h-3.5" /> AI Generate Testbench</>}
                 </motion.button>
               </div>
-              <div className="flex-1 min-h-0 relative">
+              <div className="flex-1 min-h-0 relative bg-[#050507]">
                 <AnimatePresence>
                   {isGeneratingTB && (
                     <motion.div
                       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                      className="absolute inset-0 z-10 bg-purple-950/40 backdrop-blur-sm flex items-center justify-center"
+                      className="absolute inset-0 z-10 bg-purple-950/30 backdrop-blur-sm flex items-center justify-center"
                     >
-                      <div className="flex items-center gap-3 text-purple-300 text-sm">
-                        <Sparkles className="w-5 h-5 animate-pulse" />
-                        <span>Gemini is writing your testbench...</span>
+                      <div className="flex items-center gap-3 text-purple-300 text-xs font-semibold bg-black/60 px-5 py-3 rounded-2xl border border-purple-500/20 shadow-2xl">
+                        <Sparkles className="w-4 h-4 animate-pulse text-purple-400" />
+                        <span>Gemini is generating your testbench...</span>
                       </div>
                     </motion.div>
                   )}
@@ -467,7 +479,7 @@ export default function CodeLab() {
                     minimap: { enabled: false },
                     scrollBeyondLastLine: false,
                     lineNumbers: "on",
-                    padding: { top: 10, bottom: 10 },
+                    padding: { top: 12, bottom: 12 },
                     smoothScrolling: true,
                     renderLineHighlight: "all",
                     readOnly: isGeneratingTB,
@@ -478,32 +490,32 @@ export default function CodeLab() {
           </div>
 
           {/* ── Toolbar ─────────────────────────────────────────────────── */}
-          <div className="flex items-center gap-3 px-4 py-2.5 border-b border-white/5 bg-black/30 flex-shrink-0">
+          <div className="flex items-center gap-3 px-4 py-2.5 border-b border-white/5 bg-zinc-950/25 flex-shrink-0">
             {/* Run */}
             <motion.button
-              whileHover={{ scale: 1.02, boxShadow: "0 0 20px rgba(0,229,255,0.3)" }}
+              whileHover={{ scale: 1.02, boxShadow: "0 0 20px rgba(6,182,212,0.3)" }}
               whileTap={{ scale: 0.97 }}
               onClick={runSimulation}
               disabled={isSimulating}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-sm font-bold disabled:opacity-50 shadow-[0_0_15px_rgba(0,229,255,0.2)]"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 text-white text-xs font-bold disabled:opacity-50 cursor-pointer shadow-[0_0_15px_rgba(6,182,212,0.2)]"
             >
               {isSimulating
                 ? <><Loader2 className="w-4 h-4 animate-spin" /> Simulating...</>
-                : <><Play className="w-4 h-4" /> Simulate</>}
+                : <><Play className="w-4 h-4 fill-current" /> Run Simulation</>}
             </motion.button>
 
             {/* Checker */}
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">Checker:</span>
+              <span className="text-[11px] text-zinc-500 font-semibold font-mono">Checker:</span>
               <select
                 value={checker}
                 onChange={e => setChecker(e.target.value)}
-                className="bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-400 transition-all"
+                className="bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-400 transition-all font-semibold"
               >
                 {Object.entries(checkerGroups).map(([group, items]) => (
-                  <optgroup key={group} label={group} className="bg-slate-900 text-slate-400">
+                  <optgroup key={group} label={group} className="bg-zinc-950 text-zinc-500">
                     {items.filter(c => checkers.includes(c) || checkers.length < 4).map(c => (
-                      <option key={c} value={c} className="bg-slate-900">{c}</option>
+                      <option key={c} value={c} className="bg-zinc-950 text-slate-200">{c}</option>
                     ))}
                   </optgroup>
                 ))}
@@ -514,7 +526,7 @@ export default function CodeLab() {
             <button
               onClick={exportVcd}
               disabled={!simResult?.vcd}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-white/10 text-slate-400 hover:text-white hover:border-cyan-400/30 transition-all disabled:opacity-30"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-white/10 text-slate-400 hover:text-white hover:border-cyan-400/30 transition-all disabled:opacity-30 cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" /> Export VCD
             </button>
@@ -523,9 +535,9 @@ export default function CodeLab() {
             <div className="relative ml-auto">
               <button
                 onClick={() => setShowExamples(v => !v)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-white/10 text-slate-400 hover:text-white hover:border-white/20 transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-white/10 text-slate-400 hover:text-white hover:border-white/20 transition-all cursor-pointer font-semibold"
               >
-                Examples <ChevronDown className="w-3 h-3" />
+                Load Examples <ChevronDown className="w-3 h-3 text-zinc-500" />
               </button>
               <AnimatePresence>
                 {showExamples && (
@@ -533,15 +545,15 @@ export default function CodeLab() {
                     initial={{ opacity: 0, y: -4, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -4, scale: 0.97 }}
-                    className="absolute right-0 bottom-full mb-2 w-52 bg-slate-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50"
+                    className="absolute right-0 bottom-full mb-2 w-52 bg-zinc-950 border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 p-1"
                   >
                     {Object.entries(EXAMPLES).map(([key, ex]) => (
                       <button
                         key={key}
                         onClick={() => loadExample(key)}
-                        className="w-full text-left px-4 py-2.5 text-xs text-slate-300 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2"
+                        className="w-full text-left px-3 py-2 text-xs text-zinc-400 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2 rounded-lg cursor-pointer font-semibold font-mono"
                       >
-                        <span className="w-2 h-2 rounded-full bg-cyan-400/60 flex-shrink-0" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400/60 flex-shrink-0" />
                         {ex.label}
                       </button>
                     ))}
@@ -570,42 +582,50 @@ export default function CodeLab() {
           {/* ── Results Row ─────────────────────────────────────────────── */}
           <div className="flex min-h-0 flex-1">
 
-            {/* Console */}
-            <div className="w-[380px] flex-shrink-0 border-r border-white/5 flex flex-col">
-              <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-black/20 flex-shrink-0">
-                <Terminal className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="text-xs font-semibold text-slate-400">Console</span>
+            {/* Console Module */}
+            <div className="w-[380px] flex-shrink-0 border-r border-white/5 flex flex-col bg-[#07070a]">
+              <div className="flex items-center gap-4 px-4 py-3 border-b border-white/5 bg-zinc-950/60 flex-shrink-0">
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full window-dot-red block animate-pulse" />
+                  <span className="w-2 h-2 rounded-full window-dot-yellow block" />
+                  <span className="w-2 h-2 rounded-full window-dot-green block" />
+                </div>
+                <div className="flex items-center gap-1.5 text-xs font-mono font-semibold text-zinc-400">
+                  <Terminal className="w-3.5 h-3.5 text-cyan-400" />
+                  Console Logs
+                </div>
                 {simResult && (
-                  <span className="ml-auto text-xs text-slate-600 font-mono">
+                  <span className="ml-auto text-[10px] text-zinc-500 font-mono font-semibold bg-white/2 px-2 py-0.5 rounded-md border border-white/5">
                     {simResult.error_count} error{simResult.error_count !== 1 ? "s" : ""}
                   </span>
                 )}
               </div>
-              <div ref={consoleRef} className="flex-1 overflow-y-auto p-3 space-y-0.5 bg-black/20">
+              
+              <div ref={consoleRef} className="flex-1 overflow-y-auto p-4 space-y-0.5 bg-black/10 select-text">
                 {!simResult && !isSimulating && (
-                  <div className="flex items-center justify-center h-full text-center">
+                  <div className="flex items-center justify-center h-full text-center select-none">
                     <div>
-                      <Terminal className="w-8 h-8 text-slate-700 mx-auto mb-2" />
-                      <p className="text-slate-600 text-xs">Click Simulate to run</p>
+                      <Terminal className="w-7 h-7 text-zinc-700 mx-auto mb-2" />
+                      <p className="text-zinc-600 text-xs font-semibold">Simulate to start execution log</p>
                     </div>
                   </div>
                 )}
                 {isSimulating && (
                   <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Running simulation...
+                    Running compilation & checks...
                   </div>
                 )}
                 {simResult && consoleLines.map((line, i) => (
                   <ConsoleLine key={i} line={line} />
                 ))}
                 {simResult?.errors && simResult.errors.length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-white/5">
-                    <p className="text-xs text-red-400 font-semibold mb-1.5">
-                      Mismatches ({simResult.errors.length}):
+                  <div className="mt-3 pt-3 border-t border-white/5">
+                    <p className="text-xs text-rose-400 font-bold mb-2 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5" /> Assertion Mismatches ({simResult.errors.length}):
                     </p>
                     {simResult.errors.map((err, i) => (
-                      <div key={i} className="text-xs text-red-300 font-mono mb-1 leading-4">
+                      <div key={i} className="text-xs text-rose-300/80 font-mono mb-1.5 leading-4 pl-1 border-l border-rose-500/20">
                         {err.message}
                       </div>
                     ))}
@@ -614,18 +634,25 @@ export default function CodeLab() {
               </div>
             </div>
 
-            {/* Waveform */}
-            <div className="flex-1 flex flex-col min-w-0">
-              <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-black/20 flex-shrink-0">
-                <Code2 className="w-3.5 h-3.5 text-purple-400" />
-                <span className="text-xs font-semibold text-slate-400">Waveform Viewer</span>
+            {/* Waveform Module */}
+            <div className="flex-1 flex flex-col min-w-0 bg-[#050507]">
+              <div className="flex items-center gap-4 px-4 py-3 border-b border-white/5 bg-zinc-950/60 flex-shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full window-dot-red block" />
+                  <span className="w-2.5 h-2.5 rounded-full window-dot-yellow block" />
+                  <span className="w-2.5 h-2.5 rounded-full window-dot-green block" />
+                </div>
+                <div className="flex items-center gap-1.5 text-xs font-mono font-semibold text-zinc-400">
+                  <Code2 className="w-3.5 h-3.5 text-purple-400" />
+                  Waveform Analyzer View
+                </div>
                 {simResult?.signals_found && simResult.signals_found.length > 0 && (
-                  <span className="ml-auto text-xs text-slate-600 font-mono">
+                  <span className="ml-auto text-[10px] text-zinc-500 font-mono font-semibold bg-white/2 px-2 py-0.5 rounded-md border border-white/5">
                     {simResult.signals_found.length} signals
                   </span>
                 )}
               </div>
-              <div className="flex-1 min-h-0 bg-[#050505]">
+              <div className="flex-1 min-h-0 bg-[#050507]">
                 <WaveformViewer
                   parsedData={parsedData}
                   errors={(simResult?.errors || []).map(e => ({

@@ -79,11 +79,26 @@ export default function WaveformViewer({ parsedData, errors = [] }: WaveformView
       const yLow = yBase;
       const hasError = errSet.has(sig);
 
-      ctx.fillStyle = hasError ? "#ef4444" : "#94a3b8";
-      ctx.font = hasError ? "bold 14px monospace" : "14px monospace";
-      ctx.fillText(sig, 16, yBase - 8);
+      // Premium Color Assignment based on signal categories
+      let sigColor = "#38bdf8"; // default sky blue
+      const name = sig.toLowerCase();
+      if (name.includes("clk")) {
+        sigColor = "#10b981"; // neon emerald for clock lines
+      } else if (name.includes("rst") || name === "d" || name === "a" || name === "b" || name === "cin" || name.includes("sel")) {
+        sigColor = "#06b6d4"; // neon cyan for logic inputs/resets
+      } else if (name === "q" || name === "y" || name === "sum" || name === "cout" || name.includes("out")) {
+        sigColor = "#c084fc"; // neon violet for outputs
+      }
+      if (hasError) {
+        sigColor = "#f43f5e"; // neon rose red for errors
+      }
 
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+      ctx.fillStyle = sigColor;
+      ctx.font = "bold 13px var(--font-geist-mono), monospace";
+      ctx.fillText(sig, 20, yBase - 8);
+
+      // Clean background guideline
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.04)";
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(left, yLow);
@@ -106,10 +121,10 @@ export default function WaveformViewer({ parsedData, errors = [] }: WaveformView
         return v;
       };
 
-      ctx.strokeStyle = hasError ? "#ef4444" : "#00e5ff";
-      ctx.lineWidth = 2;
-      ctx.shadowColor = hasError ? "rgba(239, 68, 68, 0.5)" : "rgba(0, 229, 255, 0.5)";
-      ctx.shadowBlur = 10;
+      ctx.strokeStyle = sigColor;
+      ctx.lineWidth = hasError ? 2.5 : 2;
+      ctx.shadowColor = sigColor;
+      ctx.shadowBlur = 8;
 
       for (let i = 0; i < sortedTimes.length - 1; i++) {
         const t0 = sortedTimes[i];

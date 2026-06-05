@@ -95,8 +95,8 @@ function EventCard({ event }: { event: AgentEvent }) {
 
   if (event.type === "start") {
     return (
-      <div className="flex items-center gap-2 text-cyan-400 text-sm font-mono py-1">
-        <Activity className="w-4 h-4 animate-pulse" />
+      <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono py-2 px-3 rounded-lg bg-cyan-950/20 border border-cyan-500/10 mb-2 animate-pulse">
+        <Activity className="w-3.5 h-3.5" />
         <span>{event.message}</span>
       </div>
     );
@@ -104,8 +104,8 @@ function EventCard({ event }: { event: AgentEvent }) {
 
   if (event.type === "log") {
     return (
-      <div className="flex items-center gap-2 text-slate-500 text-xs font-mono py-0.5">
-        <span className="text-slate-600">›</span>
+      <div className="flex items-center gap-2 text-zinc-500 text-xs font-mono py-1 px-3">
+        <span className="text-cyan-500/50">›</span>
         <span>{event.message}</span>
       </div>
     );
@@ -114,16 +114,24 @@ function EventCard({ event }: { event: AgentEvent }) {
   if (event.type === "thought") {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 4 }}
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-xl bg-purple-900/20 border border-purple-500/20 p-3 my-1"
+        className="rounded-2xl bg-gradient-to-br from-violet-950/20 via-purple-950/10 to-zinc-950/35 border border-purple-500/20 p-4.5 my-2 purple-glow"
       >
-        <div className="flex items-center gap-2 mb-1.5">
-          <Bot className="w-4 h-4 text-purple-400" />
-          <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider">AI Reasoning</span>
-          {event.step && <span className="ml-auto text-xs text-slate-600">step {event.step}</span>}
+        <div className="flex items-center gap-2.5 mb-2.5">
+          <div className="w-5 h-5 rounded-lg bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
+            <Bot className="w-3.5 h-3.5 text-purple-400" />
+          </div>
+          <span className="text-[10px] font-bold text-purple-400 uppercase tracking-widest font-sans">AI Agent Thought Process</span>
+          {event.step && (
+            <span className="ml-auto text-[10px] bg-purple-500/10 border border-purple-500/20 text-purple-300 font-mono px-2 py-0.5 rounded-full">
+              step {event.step}
+            </span>
+          )}
         </div>
-        <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap font-mono">{event.message}</p>
+        <p className="text-xs text-zinc-300 leading-relaxed font-mono whitespace-pre-wrap pl-1.5 border-l-2 border-purple-500/20">
+          {event.message}
+        </p>
       </motion.div>
     );
   }
@@ -131,16 +139,18 @@ function EventCard({ event }: { event: AgentEvent }) {
   if (event.type === "tool_call") {
     return (
       <motion.div
-        initial={{ opacity: 0, x: -4 }}
+        initial={{ opacity: 0, x: -8 }}
         animate={{ opacity: 1, x: 0 }}
-        className="rounded-lg bg-blue-900/20 border border-blue-500/20 p-2.5 my-1"
+        className="rounded-xl bg-cyan-950/10 border border-cyan-500/20 p-3 my-2 shadow-[0_4px_12px_rgba(6,182,212,0.05)]"
       >
-        <div className="flex items-center gap-2">
-          <Wrench className="w-3.5 h-3.5 text-blue-400" />
-          <span className="text-xs font-bold text-blue-400 font-mono">{event.tool}</span>
-          <ArrowRight className="w-3 h-3 text-slate-600" />
+        <div className="flex items-center gap-2.5">
+          <div className="w-5 h-5 rounded-lg bg-cyan-500/15 flex items-center justify-center border border-cyan-500/25">
+            <Wrench className="w-3.5 h-3.5 text-cyan-400" />
+          </div>
+          <span className="text-xs font-bold text-cyan-400 font-mono">{event.tool}</span>
+          <ArrowRight className="w-3 h-3 text-zinc-600" />
           {event.args && Object.keys(event.args).length > 0 && (
-            <span className="text-xs text-slate-400 font-mono truncate max-w-[280px]">
+            <span className="text-[11px] text-zinc-400 font-mono truncate max-w-[320px] bg-black/30 px-2 py-0.5 rounded">
               {Object.entries(event.args)
                 .filter(([k]) => k !== "code")
                 .map(([k, v]) => `${k}="${String(v).slice(0, 40)}"`)
@@ -148,7 +158,7 @@ function EventCard({ event }: { event: AgentEvent }) {
             </span>
           )}
           {event.args?.code && (
-            <span className="text-xs text-slate-500 font-mono italic">code={"<verilog>"}</span>
+            <span className="text-[11px] text-zinc-500 font-mono italic bg-black/30 px-2 py-0.5 rounded">code={"<verilog>"}</span>
           )}
         </div>
       </motion.div>
@@ -160,25 +170,25 @@ function EventCard({ event }: { event: AgentEvent }) {
     const isError = event.response?.startsWith("SIMULATION FAILURE") || event.response?.startsWith("Error");
     return (
       <motion.div
-        initial={{ opacity: 0, x: -4 }}
+        initial={{ opacity: 0, x: -8 }}
         animate={{ opacity: 1, x: 0 }}
-        className={`rounded-lg border p-2.5 my-1 ${
-          isSuccess ? "bg-emerald-900/15 border-emerald-500/20" :
-          isError   ? "bg-red-900/15 border-red-500/20" :
-                      "bg-slate-800/30 border-white/5"
+        className={`rounded-xl border p-3 my-2 transition-all ${
+          isSuccess ? "bg-emerald-950/10 border-emerald-500/20 shadow-[0_4px_12px_rgba(16,185,129,0.05)]" :
+          isError   ? "bg-rose-950/15 border-rose-500/20 shadow-[0_4px_12px_rgba(244,63,94,0.05)]" :
+                      "bg-zinc-900/30 border-white/5"
         }`}
       >
         <button
           onClick={() => setExpanded(e => !e)}
-          className="flex items-center gap-2 w-full text-left"
+          className="flex items-center gap-2.5 w-full text-left cursor-pointer"
         >
-          {isSuccess ? <CheckCircle className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" /> :
-           isError   ? <XCircle   className="w-3.5 h-3.5 text-red-400 flex-shrink-0" /> :
-                       <Terminal  className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />}
-          <span className={`text-xs font-semibold font-mono ${isSuccess ? "text-emerald-400" : isError ? "text-red-400" : "text-slate-400"}`}>
-            {event.tool} response
+          {isSuccess ? <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" /> :
+           isError   ? <XCircle   className="w-4 h-4 text-rose-400 flex-shrink-0" /> :
+                       <Terminal  className="w-4 h-4 text-zinc-400 flex-shrink-0" />}
+          <span className={`text-xs font-semibold font-mono ${isSuccess ? "text-emerald-400" : isError ? "text-rose-400" : "text-zinc-400"}`}>
+            {event.tool} execution response
           </span>
-          <ChevronRight className={`w-3 h-3 text-slate-600 ml-auto transition-transform ${expanded ? "rotate-90" : ""}`} />
+          <ChevronRight className={`w-3.5 h-3.5 text-zinc-500 ml-auto transition-transform ${expanded ? "rotate-90" : ""}`} />
         </button>
         <AnimatePresence>
           {expanded && (
@@ -186,7 +196,7 @@ function EventCard({ event }: { event: AgentEvent }) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="text-xs text-slate-400 font-mono mt-2 whitespace-pre-wrap overflow-hidden leading-relaxed"
+              className="text-[11px] text-zinc-400 font-mono mt-2.5 whitespace-pre-wrap overflow-hidden leading-relaxed bg-black/20 p-3 rounded-lg border border-white/2"
             >
               {event.response}
             </motion.pre>
@@ -203,13 +213,15 @@ function EventCard({ event }: { event: AgentEvent }) {
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="rounded-xl bg-emerald-900/15 border border-emerald-500/25 p-3 my-1"
+        className="rounded-2xl bg-zinc-950/40 glass-panel p-4 my-2"
       >
-        <button onClick={() => setExpanded(e => !e)} className="flex items-center gap-2 w-full text-left">
-          <Code2 className="w-4 h-4 text-emerald-400" />
-          <span className="text-xs font-bold text-emerald-400">Code Updated</span>
-          <span className="text-xs text-slate-500 ml-1">({changes} line{changes !== 1 ? "s" : ""} changed)</span>
-          <ChevronRight className={`w-3 h-3 text-slate-600 ml-auto transition-transform ${expanded ? "rotate-90" : ""}`} />
+        <button onClick={() => setExpanded(e => !e)} className="flex items-center gap-2.5 w-full text-left cursor-pointer">
+          <div className="w-5 h-5 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/25">
+            <Code2 className="w-3.5 h-3.5 text-emerald-400" />
+          </div>
+          <span className="text-xs font-bold text-emerald-400">Design Code Revised</span>
+          <span className="text-[11px] text-zinc-500 ml-1">({changes} line{changes !== 1 ? "s" : ""} modified)</span>
+          <ChevronRight className={`w-3.5 h-3.5 text-zinc-500 ml-auto transition-transform ${expanded ? "rotate-90" : ""}`} />
         </button>
         <AnimatePresence>
           {expanded && diff.length > 0 && (
@@ -217,22 +229,22 @@ function EventCard({ event }: { event: AgentEvent }) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="mt-2 overflow-hidden"
+              className="mt-3 overflow-hidden"
             >
-              <div className="rounded-lg overflow-hidden border border-white/5 bg-black/40 text-xs font-mono max-h-60 overflow-y-auto">
+              <div className="rounded-xl overflow-hidden border border-white/5 bg-black/45 text-[11px] font-mono max-h-64 overflow-y-auto">
                 {diff.map((d, i) => (
                   <div
                     key={i}
-                    className={`px-3 py-0.5 leading-5 ${
-                      d.type === "+" ? "bg-emerald-950/60 text-emerald-300" :
-                      d.type === "-" ? "bg-red-950/60 text-red-300" :
-                      "text-slate-600"
+                    className={`px-3 py-1 leading-5 flex ${
+                      d.type === "+" ? "bg-emerald-950/40 text-emerald-300" :
+                      d.type === "-" ? "bg-rose-950/40 text-rose-300" :
+                      "text-zinc-600/80"
                     }`}
                   >
-                    <span className="select-none mr-2 opacity-50">
+                    <span className="select-none mr-3 opacity-40 w-4 block text-center">
                       {d.type === "+" ? "+" : d.type === "-" ? "−" : " "}
                     </span>
-                    {d.line}
+                    <span className="flex-1 whitespace-pre-wrap">{d.line}</span>
                   </div>
                 ))}
               </div>
@@ -249,21 +261,21 @@ function EventCard({ event }: { event: AgentEvent }) {
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className={`rounded-2xl p-4 my-2 border-2 ${
+        className={`rounded-2xl p-5 my-3 border-2 ${
           success
-            ? "bg-emerald-500/10 border-emerald-500/40 shadow-[0_0_30px_rgba(16,185,129,0.15)]"
-            : "bg-amber-500/10 border-amber-500/40 shadow-[0_0_30px_rgba(245,158,11,0.15)]"
+            ? "bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.15)] emerald-glow"
+            : "bg-amber-500/10 border-amber-500/30 shadow-[0_0_30px_rgba(245,158,11,0.15)]"
         }`}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3.5">
           {success
-            ? <CheckCircle className="w-6 h-6 text-emerald-400" />
-            : <AlertTriangle className="w-6 h-6 text-amber-400" />}
+            ? <CheckCircle className="w-7 h-7 text-emerald-400" />
+            : <AlertTriangle className="w-7 h-7 text-amber-400" />}
           <div>
             <p className={`font-bold text-sm ${success ? "text-emerald-300" : "text-amber-300"}`}>
-              {success ? "✓ All Verification Checks Passed!" : "⚠ Maximum Iterations Reached"}
+              {success ? "✓ Verification Cycle Success!" : "⚠ Agent Completed Cycle"}
             </p>
-            <p className="text-xs text-slate-400 mt-0.5">{event.message}</p>
+            <p className="text-xs text-zinc-400 mt-1 leading-relaxed">{event.message}</p>
           </div>
         </div>
       </motion.div>
@@ -272,12 +284,12 @@ function EventCard({ event }: { event: AgentEvent }) {
 
   if (event.type === "error") {
     return (
-      <div className="rounded-xl bg-red-900/20 border border-red-500/30 p-3 my-1">
+      <div className="rounded-xl bg-rose-950/15 border border-rose-500/30 p-4.5 my-2 rose-glow">
         <div className="flex items-center gap-2">
-          <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-          <span className="text-xs font-bold text-red-400">Error</span>
+          <XCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+          <span className="text-xs font-bold text-rose-400">Agent Exception Error</span>
         </div>
-        <p className="text-xs text-red-300 font-mono mt-1">{event.message}</p>
+        <p className="text-xs text-rose-300 font-mono mt-2 pl-1 whitespace-pre-wrap">{event.message}</p>
       </div>
     );
   }
@@ -437,29 +449,29 @@ export default function AgentStudio() {
   const progressPct = Math.round((iteration / maxIterations) * 100);
 
   return (
-    <div className="flex flex-col h-screen bg-[#030303] text-slate-100 font-sans overflow-hidden">
+    <div className="flex flex-col h-screen bg-[#030304] text-slate-100 font-sans overflow-hidden">
       {/* ── Navigation bar ─────────────────────────────────────────────── */}
-      <nav className="h-16 border-b border-white/5 flex items-center px-6 gap-4 bg-black/30 backdrop-blur-md flex-shrink-0 z-20">
+      <nav className="h-14 border-b border-white/5 flex items-center px-6 gap-4 bg-black/30 backdrop-blur-md flex-shrink-0 z-20">
         <Link href="/" className="flex items-center gap-3 group">
           <motion.div
             whileHover={{ scale: 1.05, rotate: 5 }}
-            className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 to-purple-600 flex items-center justify-center shadow-[0_0_15px_rgba(0,229,255,0.25)]"
+            className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-400 to-purple-600 flex items-center justify-center shadow-[0_0_15px_rgba(0,229,255,0.25)]"
           >
             <Activity className="text-white w-4 h-4" />
           </motion.div>
-          <span className="font-bold text-lg bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+          <span className="font-bold text-base bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
             LogicAgent
           </span>
         </Link>
 
-        <div className="flex items-center gap-1 ml-4">
+        <div className="flex items-center gap-1.5 ml-4">
           <Link
             href="/"
             className="px-3 py-1.5 text-sm rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all"
           >
             Verifier
           </Link>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-medium">
             <Bot className="w-3.5 h-3.5" />
             Agent Studio
           </div>
@@ -477,7 +489,7 @@ export default function AgentStudio() {
           {simBackend && (
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-mono ${
               simBackend.backend === "iverilog"
-                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.05)]"
                 : "bg-amber-500/10 border-amber-500/20 text-amber-400"
             }`}>
               <Cpu className="w-3.5 h-3.5" />
@@ -492,35 +504,35 @@ export default function AgentStudio() {
       {/* ── Main layout ─────────────────────────────────────────────────── */}
       <div className="flex flex-1 min-h-0">
 
-        {/* ── LEFT PANEL ─────────────────────────────────────────────── */}
-        <div className="w-[420px] flex-shrink-0 border-r border-white/5 flex flex-col bg-slate-900/20 overflow-y-auto">
+        {/* ── LEFT PANEL: Config and Monaco Editor ─────────────────────── */}
+        <div className="w-[420px] flex-shrink-0 border-r border-white/5 flex flex-col bg-zinc-950/45 backdrop-blur-2xl overflow-y-auto">
 
           {/* Config section */}
           <div className="p-5 space-y-4 border-b border-white/5">
-            <h2 className="text-xs uppercase tracking-widest text-slate-500 font-bold flex items-center gap-2">
-              <Zap className="w-3.5 h-3.5 text-cyan-400" /> Configuration
+            <h2 className="text-xs uppercase tracking-widest text-zinc-400 font-bold flex items-center gap-2">
+              <Zap className="w-3.5 h-3.5 text-cyan-400" /> Agent Configurations
             </h2>
 
             {/* Checker selector */}
             <div className="space-y-1.5">
-              <label className="text-xs text-slate-400 font-medium">Checker Type</label>
+              <label className="text-[11px] text-zinc-400 font-semibold uppercase tracking-wider">Target Checker</label>
               <select
                 value={checker}
                 onChange={e => handleCheckerChange(e.target.value)}
                 disabled={isRunning}
-                className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-sm focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/30 transition-all text-slate-200 disabled:opacity-50"
+                className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/30 transition-all text-slate-200 disabled:opacity-50"
               >
                 {Object.entries(checkerGroups).map(([group, items]) => (
-                  <optgroup key={group} label={group} className="bg-slate-900 text-slate-400">
+                  <optgroup key={group} label={group} className="bg-zinc-950 text-zinc-500">
                     {items.filter(c => checkers.includes(c) || checkers.length === 0).map(c => (
-                      <option key={c} value={c} className="bg-slate-900">{c}</option>
+                      <option key={c} value={c} className="bg-zinc-950 text-slate-200">{c}</option>
                     ))}
                   </optgroup>
                 ))}
               </select>
               {checkerDefs[checker] && (
-                <p className="text-xs text-slate-500 flex items-start gap-1.5 mt-1">
-                  <Info className="w-3 h-3 text-slate-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-zinc-500 flex items-start gap-1.5 mt-1.5 leading-relaxed bg-white/2 p-2.5 rounded-lg border border-white/2 font-mono">
+                  <Info className="w-3.5 h-3.5 text-cyan-400/80 flex-shrink-0 mt-0.5" />
                   {checkerDefs[checker].description}
                 </p>
               )}
@@ -528,26 +540,26 @@ export default function AgentStudio() {
 
             {/* Goal */}
             <div className="space-y-1.5">
-              <label className="text-xs text-slate-400 font-medium">Verification Goal</label>
+              <label className="text-[11px] text-zinc-400 font-semibold uppercase tracking-wider">Verification Goal</label>
               <textarea
                 value={goal}
                 onChange={e => setGoal(e.target.value)}
                 disabled={isRunning}
                 rows={3}
-                className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-sm resize-none focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/30 transition-all text-slate-200 disabled:opacity-50"
+                className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs resize-none focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/30 transition-all text-slate-200 disabled:opacity-50 leading-relaxed font-mono"
                 placeholder="Describe what the circuit should do..."
               />
             </div>
 
             {/* API Key */}
             <div className="space-y-1.5">
-              <label className="text-xs text-slate-400 font-medium">Gemini API Key</label>
+              <label className="text-[11px] text-zinc-400 font-semibold uppercase tracking-wider font-mono">Gemini API Key</label>
               <input
                 type="password"
                 value={apiKey}
                 onChange={e => setApiKey(e.target.value)}
                 disabled={isRunning}
-                className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-sm focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/30 transition-all text-slate-200 font-mono disabled:opacity-50"
+                className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/30 transition-all text-slate-200 font-mono disabled:opacity-50"
                 placeholder="AIza... (leave blank to use env variable)"
               />
             </div>
@@ -555,14 +567,14 @@ export default function AgentStudio() {
 
           {/* Templates */}
           <div className="p-5 space-y-3 border-b border-white/5">
-            <h2 className="text-xs uppercase tracking-widest text-slate-500 font-bold">Load Template</h2>
+            <h2 className="text-xs uppercase tracking-widest text-zinc-400 font-bold">Verification Templates</h2>
             <div className="flex gap-2 flex-wrap">
               {Object.keys(TEMPLATES).map(k => (
                 <button
                   key={k}
                   onClick={() => loadTemplate(k)}
                   disabled={isRunning}
-                  className="px-3 py-1.5 text-xs rounded-lg border border-white/10 text-slate-400 hover:text-white hover:bg-white/5 hover:border-cyan-400/30 transition-all disabled:opacity-40"
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:bg-white/5 hover:border-cyan-400/30 transition-all disabled:opacity-40 cursor-pointer"
                 >
                   {k}
                 </button>
@@ -570,14 +582,21 @@ export default function AgentStudio() {
             </div>
           </div>
 
-          {/* Monaco Editor */}
-          <div className="flex-1 flex flex-col min-h-0 border-b border-white/5">
-            <div className="flex items-center gap-2 px-5 py-3 border-b border-white/5">
-              <Code2 className="w-4 h-4 text-cyan-400" />
-              <span className="text-xs font-semibold text-slate-400">Verilog Source</span>
+          {/* Monaco Editor in Mock IDE frame */}
+          <div className="flex-1 flex flex-col min-h-0 border-b border-white/5 bg-[#050507]">
+            <div className="flex items-center gap-4 px-4 py-3 border-b border-white/5 bg-zinc-950/60 flex-shrink-0">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full window-dot-red block" />
+                <span className="w-2.5 h-2.5 rounded-full window-dot-yellow block" />
+                <span className="w-2.5 h-2.5 rounded-full window-dot-green block" />
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-mono font-semibold text-zinc-300">
+                <Code2 className="w-3.5 h-3.5 text-cyan-400" />
+                rtl.v <span className="text-zinc-600 font-sans font-normal">— source</span>
+              </div>
               {isRunning && (
-                <span className="ml-auto text-xs text-purple-400 animate-pulse flex items-center gap-1">
-                  <RefreshCw className="w-3 h-3 animate-spin" /> Agent editing...
+                <span className="ml-auto text-[10px] text-purple-400 animate-pulse flex items-center gap-1 font-mono font-bold">
+                  <RefreshCw className="w-3 h-3 animate-spin" /> AGENT RUNNING...
                 </span>
               )}
             </div>
@@ -604,18 +623,18 @@ export default function AgentStudio() {
           </div>
 
           {/* Progress + Run button */}
-          <div className="p-5 space-y-4">
-            {(isRunning || isFinished) && (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>Agent Progress</span>
-                  <span className="font-mono">{iteration}/{maxIterations} iterations</span>
+          <div className="p-5 space-y-4 bg-zinc-950/20">
+            {(isRunning || iteration > 0) && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-zinc-400">
+                  <span className="font-medium">Verification Iterations</span>
+                  <span className="font-mono text-cyan-400 font-semibold">{iteration}/{maxIterations}</span>
                 </div>
-                <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                <div className="h-2 bg-black/40 rounded-full overflow-hidden border border-white/5 p-0.5">
                   <motion.div
-                    className={`h-full rounded-full ${isFinished ? "bg-emerald-500" : "bg-gradient-to-r from-cyan-500 to-purple-500"}`}
+                    className={`h-full rounded-full ${isFinished ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" : "bg-gradient-to-r from-cyan-500 via-indigo-500 to-purple-500"}`}
                     animate={{ width: `${progressPct}%` }}
-                    transition={{ duration: 0.5 }}
+                    transition={{ duration: 0.4 }}
                   />
                 </div>
               </div>
@@ -626,61 +645,59 @@ export default function AgentStudio() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={stopAgent}
-                className="w-full py-3 rounded-xl bg-red-500/20 border border-red-500/30 hover:bg-red-500/30 transition-all text-sm font-semibold text-red-400 flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-xl bg-rose-500/10 border border-rose-500/25 hover:bg-rose-500/20 transition-all text-sm font-semibold text-rose-400 flex items-center justify-center gap-2 cursor-pointer shadow-[0_4px_12px_rgba(244,63,94,0.05)]"
               >
-                <Square className="w-4 h-4" />
-                Stop Agent
+                <Square className="w-4 h-4 fill-current" />
+                Stop Agent Loop
               </motion.button>
             ) : (
               <motion.button
-                whileHover={{ scale: 1.02, boxShadow: "0 0 25px rgba(139,92,246,0.4)" }}
+                whileHover={{ scale: 1.02, boxShadow: "0 0 25px rgba(139,92,246,0.3)" }}
                 whileTap={{ scale: 0.98 }}
                 onClick={runAgent}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-sm font-bold text-white flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,229,255,0.2)]"
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-sm font-bold text-white flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,229,255,0.2)] cursor-pointer"
               >
-                <Play className="w-4 h-4" />
-                Run Agent
+                <Play className="w-4 h-4 fill-current" />
+                Execute Verification Loop
               </motion.button>
             )}
           </div>
         </div>
 
-        {/* ── RIGHT PANEL: Streaming Console ──────────────────────────── */}
+        {/* ── RIGHT PANEL: Streaming Telemetry Console ────────────────── */}
         <div className="flex-1 flex flex-col min-w-0 relative">
-          {/* Ambient glow */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-purple-500/10 rounded-full blur-[100px] pointer-events-none -z-10" />
-
-          {/* Console header */}
-          <div className="h-14 border-b border-white/5 flex items-center px-6 gap-3 bg-black/20 backdrop-blur-sm flex-shrink-0">
+          
+          {/* Console Mock IDE header */}
+          <div className="h-14 border-b border-white/5 flex items-center px-6 gap-3 bg-zinc-950/60 backdrop-blur-sm flex-shrink-0">
             <Terminal className="w-4 h-4 text-cyan-400" />
-            <span className="text-sm font-semibold text-slate-300">Live Agent Console</span>
+            <span className="text-xs font-bold text-zinc-300 font-mono tracking-wider">Agent Workspace & Stream Telemetry</span>
             {isRunning && (
-              <div className="flex items-center gap-1.5 ml-2">
-                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                <span className="text-xs text-cyan-400">Streaming</span>
+              <div className="flex items-center gap-1.5 ml-2.5">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
+                <span className="text-[10px] text-cyan-400 uppercase font-mono font-bold tracking-wider">Streaming Live</span>
               </div>
             )}
             {events.length > 0 && !isRunning && (
               <button
                 onClick={() => { setEvents([]); setIteration(0); setIsFinished(false); }}
-                className="ml-auto text-xs text-slate-500 hover:text-slate-300 flex items-center gap-1 transition-colors"
+                className="ml-auto text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1.5 transition-colors cursor-pointer bg-white/2 border border-white/5 rounded-lg px-2.5 py-1"
               >
-                <RefreshCw className="w-3 h-3" /> Clear
+                <RefreshCw className="w-3 h-3" /> Clear Console
               </button>
             )}
           </div>
 
           {/* Console body */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-0.5">
+          <div className="flex-1 overflow-y-auto p-6 space-y-1 bg-black/15">
             {events.length === 0 && !isRunning && (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-purple-600/20 border border-white/10 flex items-center justify-center mb-4">
-                  <Bot className="w-8 h-8 text-slate-400" />
+              <div className="flex flex-col items-center justify-center h-full text-center select-none">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500/15 to-purple-600/15 border border-white/5 flex items-center justify-center mb-5 shadow-lg">
+                  <Bot className="w-8 h-8 text-zinc-400" />
                 </div>
-                <p className="text-slate-400 text-sm font-medium">Agent Studio Ready</p>
-                <p className="text-slate-600 text-xs mt-1 max-w-xs">
-                  Configure your checker and Verilog code on the left, then click{" "}
-                  <span className="text-cyan-400">Run Agent</span> to watch the AI autonomously debug and fix your design.
+                <p className="text-zinc-200 text-sm font-bold">Agent Loop Terminal</p>
+                <p className="text-zinc-500 text-xs mt-1.5 max-w-sm leading-relaxed">
+                  Configure your check specification and code on the left, then click{" "}
+                  <span className="text-cyan-400 font-semibold">Execute Verification Loop</span>. The AI will recursively synthesize testbenches, parse errors, and repair code.
                 </p>
               </div>
             )}
