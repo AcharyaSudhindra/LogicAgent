@@ -1,5 +1,9 @@
 import re
-from typing import Dict, Any, List, Tuple
+import os
+import shutil
+import subprocess
+import tempfile
+from typing import Dict, Any, List, Tuple, Optional
 
 class RTLSimulator:
     """
@@ -271,11 +275,285 @@ def build_vcd_string(signals: List[str], timeline: List[Tuple[int, Dict[str, str
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# Icarus Verilog (iverilog) Real Simulator Integration
+# ---------------------------------------------------------------------------
+
+def is_iverilog_available() -> bool:
+    """Returns True if Icarus Verilog is installed and accessible on PATH."""
+    return shutil.which("iverilog") is not None
+
+
+def get_iverilog_version() -> Optional[str]:
+    """Returns the iverilog version string, or None if not available."""
+    try:
+        result = subprocess.run(
+            ["iverilog", "-V"],
+            capture_output=True, text=True, timeout=5
+        )
+        # iverilog prints version to stderr
+        output = result.stderr or result.stdout or ""
+        first_line = output.strip().splitlines()[0] if output.strip() else None
+        return first_line
+    except Exception:
+        return None
+
+
+def _extract_module_name(code: str) -> str:
+    """Extract the top-level module name from Verilog source."""
+    match = re.search(r'\bmodule\s+([a-zA-Z0-9_]+)', code)
+    return match.group(1) if match else "dut_module"
+
+
+def _generate_iverilog_testbench(module_name: str, inputs: List[str], outputs: List[str], checker: str) -> str:
+    """
+    Generate a complete Verilog testbench for the given module and checker type.
+    Produces VCD output to 'dump.vcd' in the working directory.
+    """
+    chk = checker.upper()
+
+    # Declare regs for inputs, wires for outputs
+    decls = []
+    for sig in inputs:
+        decls.append(f"  reg {sig};")
+    for sig in outputs:
+        decls.append(f"  wire {sig};")
+
+    # Build port connection list from known signals
+    all_ports = inputs + outputs
+    port_connections = ", ".join(f".{p}({p})" for p in all_ports)
+
+    # Build stimulus body for each checker type
+    if chk in ("AND", "OR", "XOR", "NAND", "NOR", "XNOR"):
+        a = inputs[0] if len(inputs) > 0 else "a"
+        b = inputs[1] if len(inputs) > 1 else "b"
+        stim = (
+            f"    {a}=0; {b}=0; #10;\n"
+            f"    {a}=1; {b}=0; #10;\n"
+            f"    {a}=1; {b}=1; #10;\n"
+            f"    {a}=0; {b}=1; #10;\n"
+            f"    {a}=0; {b}=0; #10;"
+        )
+        inits = f"    {a}=0; {b}=0;"
+
+    elif chk == "HALF_ADDER":
+        a = inputs[0] if len(inputs) > 0 else "a"
+        b = inputs[1] if len(inputs) > 1 else "b"
+        stim = (
+            f"    {a}=0; {b}=0; #10;\n"
+            f"    {a}=1; {b}=0; #10;\n"
+            f"    {a}=1; {b}=1; #10;\n"
+            f"    {a}=0; {b}=1; #10;\n"
+            f"    {a}=0; {b}=0; #10;"
+        )
+        inits = f"    {a}=0; {b}=0;"
+
+    elif chk == "FULL_ADDER":
+        a = inputs[0] if len(inputs) > 0 else "a"
+        b = inputs[1] if len(inputs) > 1 else "b"
+        cin = inputs[2] if len(inputs) > 2 else "cin"
+        stim = "\n".join(
+            f"    {a}={av}; {b}={bv}; {cin}={cv}; #10;"
+            for av in ("0", "1") for bv in ("0", "1") for cv in ("0", "1")
+        )
+        inits = f"    {a}=0; {b}=0; {cin}=0;"
+
+    elif chk == "MUX2":
+        d0 = inputs[0] if len(inputs) > 0 else "d0"
+        d1 = inputs[1] if len(inputs) > 1 else "d1"
+        sel = inputs[2] if len(inputs) > 2 else "sel"
+        stim = (
+            f"    {d0}=0; {d1}=1; {sel}=0; #10;\n"
+            f"    {d0}=1; {d1}=0; {sel}=0; #10;\n"
+            f"    {d0}=1; {d1}=0; {sel}=1; #10;\n"
+            f"    {d0}=0; {d1}=1; {sel}=1; #10;\n"
+            f"    {d0}=0; {d1}=0; {sel}=0; #10;"
+        )
+        inits = f"    {d0}=0; {d1}=0; {sel}=0;"
+
+    elif chk == "DFF":
+        clk = "clk" if "clk" in inputs else (inputs[0] if inputs else "clk")
+        rst = "rst" if "rst" in inputs else ""
+        d   = "d"   if "d"   in inputs else ""
+        rst_init = f"{rst}=1; " if rst else ""
+        d_init   = f"{d}=0;"   if d   else ""
+        inits    = f"    {clk}=0; {rst_init}{d_init}"
+        rst_rel  = f"{rst}=0; " if rst else ""
+        d_set    = lambda v: (f"{d}={v}; " if d else "")
+        stim = (
+            f"    // Reset phase\n"
+            f"    #5; {clk}=1; #5; {clk}=0;\n"
+            f"    {rst_rel}{d_set('1')}\n"
+            f"    #5; {clk}=1; #5; {clk}=0; // posedge: q=1\n"
+            f"    {d_set('0')}\n"
+            f"    #5; {clk}=1; #5; {clk}=0; // posedge: q=0\n"
+            f"    {d_set('1')}\n"
+            f"    #5; {clk}=1; #5; {clk}=0; // posedge: q=1"
+        )
+
+    elif chk == "T_FF":
+        clk = "clk" if "clk" in inputs else (inputs[0] if inputs else "clk")
+        rst = "rst" if "rst" in inputs else ""
+        t   = "t"   if "t"   in inputs else ""
+        rst_init = f"{rst}=1; " if rst else ""
+        t_init   = f"{t}=0;"   if t   else ""
+        inits    = f"    {clk}=0; {rst_init}{t_init}"
+        rst_rel  = f"{rst}=0; " if rst else ""
+        t_set    = lambda v: (f"{t}={v}; " if t else "")
+        stim = (
+            f"    #5; {clk}=1; #5; {clk}=0; // reset\n"
+            f"    {rst_rel}{t_set('1')}\n"
+            f"    #5; {clk}=1; #5; {clk}=0; // toggle\n"
+            f"    #5; {clk}=1; #5; {clk}=0; // toggle back\n"
+            f"    {t_set('0')}\n"
+            f"    #5; {clk}=1; #5; {clk}=0; // hold"
+        )
+
+    elif chk == "JK_FF":
+        clk = "clk" if "clk" in inputs else (inputs[0] if inputs else "clk")
+        rst = "rst" if "rst" in inputs else ""
+        j   = "j"   if "j"   in inputs else ""
+        k   = "k"   if "k"   in inputs else ""
+        rst_init = f"{rst}=1; " if rst else ""
+        jk_init  = (f"{j}=0; {k}=0;" if j and k else "")
+        inits    = f"    {clk}=0; {rst_init}{jk_init}"
+        rst_rel  = f"{rst}=0; " if rst else ""
+        jk_set   = lambda jv, kv: (f"{j}={jv}; {k}={kv}; " if j and k else "")
+        stim = (
+            f"    #5; {clk}=1; #5; {clk}=0; // reset\n"
+            f"    {rst_rel}{jk_set('1','0')}\n"
+            f"    #5; {clk}=1; #5; {clk}=0; // set q=1\n"
+            f"    {jk_set('0','1')}\n"
+            f"    #5; {clk}=1; #5; {clk}=0; // reset q=0\n"
+            f"    {jk_set('1','1')}\n"
+            f"    #5; {clk}=1; #5; {clk}=0; // toggle q=1"
+        )
+
+    else:
+        # Fallback: just toggle all inputs
+        inits = "    " + "; ".join(f"{s}=0" for s in inputs) + ";"
+        stim = "    #10; " + "; ".join(f"{s}=1" for s in inputs) + ";\n    #10;"
+
+    tb_name = f"tb_{module_name}"
+    decl_block = "\n".join(decls)
+    tb = f"""`timescale 1ns/1ps
+module {tb_name};
+{decl_block}
+
+  {module_name} dut({port_connections});
+
+  initial begin
+    $dumpfile("dump.vcd");
+    $dumpvars(0, {tb_name});
+{inits}
+{stim}
+    #20;
+    $finish;
+  end
+endmodule
+"""
+    return tb
+
+
+def simulate_with_iverilog(code: str, checker: str) -> Tuple[bool, str, Dict[str, Any]]:
+    """
+    Full Icarus Verilog simulation pipeline.
+    Writes RTL + generated testbench to a temp dir, compiles with iverilog,
+    runs vvp to produce a VCD, reads the VCD, then runs verify_waveform.
+    Returns: (success, vcd_text_or_error, verify_results)
+    """
+    from backend import parse_vcd_text, verify_waveform
+
+    # Parse module info using the built-in RTLSimulator parser
+    try:
+        sim_parser = RTLSimulator(code)
+    except Exception as e:
+        return False, f"Parse Error: {str(e)}", {}
+
+    module_name = _extract_module_name(code)
+    inputs = sim_parser.inputs
+    outputs = sim_parser.outputs
+
+    if not inputs and not outputs:
+        return False, "Compile Error: No valid module inputs or outputs detected.", {}
+
+    testbench = _generate_iverilog_testbench(module_name, inputs, outputs, checker)
+
+    tmpdir = tempfile.mkdtemp(prefix="logicagent_")
+    try:
+        rtl_path = os.path.join(tmpdir, "rtl.v")
+        tb_path  = os.path.join(tmpdir, "tb.v")
+        vvp_path = os.path.join(tmpdir, "sim.vvp")
+        vcd_path = os.path.join(tmpdir, "dump.vcd")
+
+        with open(rtl_path, "w") as f:
+            f.write(code)
+        with open(tb_path, "w") as f:
+            f.write(testbench)
+
+        # Step 1: Compile
+        compile_result = subprocess.run(
+            ["iverilog", "-o", vvp_path, tb_path, rtl_path],
+            capture_output=True, text=True, timeout=30, cwd=tmpdir
+        )
+        if compile_result.returncode != 0:
+            err_msg = compile_result.stderr or compile_result.stdout or "Unknown compile error"
+            return False, f"iverilog Compile Error:\n{err_msg}", {}
+
+        # Step 2: Simulate
+        run_result = subprocess.run(
+            ["vvp", vvp_path],
+            capture_output=True, text=True, timeout=60, cwd=tmpdir
+        )
+        if run_result.returncode != 0:
+            err_msg = run_result.stderr or run_result.stdout or "Unknown simulation error"
+            return False, f"vvp Simulation Error:\n{err_msg}", {}
+
+        # Step 3: Read VCD
+        if not os.path.exists(vcd_path):
+            return False, "Simulation Error: No VCD file was produced. Check $dumpfile path.", {}
+
+        with open(vcd_path, "r", errors="ignore") as f:
+            vcd_text = f.read()
+
+        if not vcd_text.strip():
+            return False, "Simulation Error: VCD file is empty.", {}
+
+        # Step 4: Verify
+        try:
+            parsed = parse_vcd_text(vcd_text)
+            verify_results = verify_waveform(parsed, checker=checker)
+            return True, vcd_text, verify_results
+        except Exception as e:
+            return True, vcd_text, {
+                "verdict": "Incorrect",
+                "errors": [{"message": f"Verification error: {str(e)}"}],
+                "summary": {}
+            }
+
+    except subprocess.TimeoutExpired:
+        return False, "Timeout Error: Simulation took too long (>60s).", {}
+    except FileNotFoundError as e:
+        return False, f"Tool Error: {str(e)} — is iverilog installed?", {}
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# Main entry-point — tries iverilog first, falls back to built-in simulator
+# ---------------------------------------------------------------------------
+
 def simulate_verilog(code: str, checker: str) -> Tuple[bool, str, Dict[str, Any]]:
     """
     Simulates the provided Verilog block against targeted tests.
+    Tries Icarus Verilog first; falls back to the built-in behavioral simulator
+    if iverilog is not available.
     Returns: (compile_success, vcd_text_or_error, verify_results)
     """
+    if is_iverilog_available():
+        return simulate_with_iverilog(code, checker)
+
+    # --- Built-in behavioral simulator (fallback) ---
     try:
         sim = RTLSimulator(code)
     except Exception as e:
@@ -291,41 +569,37 @@ def simulate_verilog(code: str, checker: str) -> Tuple[bool, str, Dict[str, Any]
 
     timeline = []
     current_time = 0
-    time_step = 10 # 10ns step sizes
-    
+    time_step = 10  # 10ns step sizes
+
     # Simulation state loop
     for stim in stimuli:
         # Save previous state to accurately compute transition edges
         prev_state = sim.state.copy()
-        
+
         # 1. Apply inputs
         for inp, val in stim.items():
             if inp in sim.inputs:
                 sim.state[inp] = val
-                
+
         # 2. Evaluate sequential edge events (if any clock transition occurred)
-        # Check if clock posedge happened in this step
         seq_updates = {}
         for block in sim.always_blocks:
             clk_name = block["clk"]
             edge = block["edge"]
-            
-            # Simple clock toggle logic
+
             is_posedge = (edge == "posedge" and stim.get(clk_name) == "1" and prev_state.get(clk_name) == "0")
             is_negedge = (edge == "negedge" and stim.get(clk_name) == "0" and prev_state.get(clk_name) == "1")
-            
+
             if is_posedge or is_negedge:
-                # Capture updates to apply after evaluating block (simulating non-blocking behaviors)
                 block_updates = sim.execute_seq_block(block["body"], sim.state)
                 seq_updates.update(block_updates)
-                
-        # Apply sequential registers updates
+
+        # Apply sequential register updates
         for reg, val in seq_updates.items():
             if reg in sim.registers or reg in sim.outputs:
                 sim.state[reg] = val
 
         # 3. Evaluate combinational assignments
-        # Iterate multiple times to resolve dependencies (propagating signals)
         for _ in range(5):
             changed = False
             for out, expr in sim.assigns:
@@ -336,19 +610,121 @@ def simulate_verilog(code: str, checker: str) -> Tuple[bool, str, Dict[str, Any]
             if not changed:
                 break
 
-        # Record snapshot of current timeline state
+        # Record snapshot
         timeline.append((current_time, sim.state.copy()))
         current_time += time_step
 
     # Output VCD file
     all_signals = sorted(list(sim.state.keys()))
     vcd_text = build_vcd_string(all_signals, timeline)
-    
-    # Verify the generated waveform using our backend waveform verifier!
+
     from backend import parse_vcd_text, verify_waveform
     try:
         parsed = parse_vcd_text(vcd_text)
         verify_results = verify_waveform(parsed, checker=checker)
         return True, vcd_text, verify_results
     except Exception as e:
-        return True, vcd_text, {"verdict": "Incorrect", "errors": [{"message": f"Verification execution error: {str(e)}"}], "summary": {}}
+        return True, vcd_text, {
+            "verdict": "Incorrect",
+            "errors": [{"message": f"Verification execution error: {str(e)}"}],
+            "summary": {}
+        }
+
+
+# ---------------------------------------------------------------------------
+# Custom Testbench Simulation — user-supplied RTL + testbench
+# ---------------------------------------------------------------------------
+
+def simulate_with_custom_tb(
+    rtl_code: str,
+    tb_code: str,
+    checker: str = "AND",
+) -> Tuple[bool, str, str, Dict[str, Any]]:
+    """
+    Simulate a user-provided RTL module alongside a user-provided testbench.
+    If iverilog is available: compiles rtl.v + tb.v, runs vvp, reads VCD.
+    If not: falls back to the built-in simulator (tb_code is ignored).
+    Returns: (success, vcd_text_or_error, console_output, verify_results)
+    """
+    from backend import parse_vcd_text, verify_waveform
+
+    if is_iverilog_available():
+        tmpdir = tempfile.mkdtemp(prefix="logicagent_lab_")
+        try:
+            rtl_path = os.path.join(tmpdir, "rtl.v")
+            tb_path  = os.path.join(tmpdir, "tb.v")
+            vvp_path = os.path.join(tmpdir, "sim.vvp")
+            vcd_path = os.path.join(tmpdir, "dump.vcd")
+
+            with open(rtl_path, "w") as f:
+                f.write(rtl_code)
+            with open(tb_path, "w") as f:
+                f.write(tb_code)
+
+            compile_result = subprocess.run(
+                ["iverilog", "-o", vvp_path, tb_path, rtl_path],
+                capture_output=True, text=True, timeout=30, cwd=tmpdir
+            )
+            console_lines = []
+            if compile_result.stderr:
+                console_lines.append(compile_result.stderr.strip())
+            if compile_result.stdout:
+                console_lines.append(compile_result.stdout.strip())
+
+            if compile_result.returncode != 0:
+                err = "\n".join(console_lines) or "Unknown compile error"
+                return False, f"Compile Error:\n{err}", err, {}
+
+            console_lines.insert(0, "✓ Compilation successful (iverilog)")
+
+            run_result = subprocess.run(
+                ["vvp", vvp_path],
+                capture_output=True, text=True, timeout=60, cwd=tmpdir
+            )
+            if run_result.stdout:
+                console_lines.append(run_result.stdout.strip())
+            if run_result.stderr:
+                console_lines.append(run_result.stderr.strip())
+
+            if run_result.returncode != 0:
+                return False, "Simulation Error", "\n".join(console_lines), {}
+
+            console_lines.insert(1, "✓ Simulation complete (vvp)")
+
+            if not os.path.exists(vcd_path):
+                msg = "No VCD produced. Ensure testbench has $dumpfile(\"dump.vcd\") and $dumpvars."
+                console_lines.append(f"⚠ {msg}")
+                return False, msg, "\n".join(console_lines), {}
+
+            with open(vcd_path, "r", errors="ignore") as f:
+                vcd_text = f.read()
+
+            try:
+                parsed = parse_vcd_text(vcd_text)
+                chk = checker.upper() if checker else "AND"
+                verify_results = verify_waveform(parsed, checker=chk)
+            except Exception as e:
+                verify_results = {"verdict": "Error", "errors": [{"message": str(e)}], "summary": {}}
+
+            console_lines.append(f"✓ Checker ({checker}): {verify_results.get('verdict', 'N/A')}")
+            return True, vcd_text, "\n".join(console_lines), verify_results
+
+        except subprocess.TimeoutExpired:
+            return False, "Timeout", "Timeout: simulation exceeded 60 seconds.", {}
+        except FileNotFoundError as e:
+            return False, str(e), str(e), {}
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    # Built-in fallback (testbench ignored)
+    warning = (
+        "⚠ iverilog not found — running built-in simulator (testbench ignored).\n"
+        "  Install Icarus Verilog: https://bleyer.org/icarus/\n"
+    )
+    success, vcd_text, verify_results = simulate_verilog(rtl_code, checker)
+    console_out = warning
+    if success:
+        console_out += f"✓ Built-in simulation complete. Verdict: {verify_results.get('verdict', 'N/A')}"
+    else:
+        console_out += f"✗ Simulation failed: {vcd_text}"
+    return success, vcd_text, console_out, verify_results

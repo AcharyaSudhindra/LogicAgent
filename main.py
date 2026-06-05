@@ -22,8 +22,9 @@ from backend import (
     get_supported_checkers,
     get_checker_definitions,
 )
-from backend.smart_engine import suggest_signal_mapping, explain_verification_errors, analyze_debug_artifact, chat_with_agent
+from backend.smart_engine import suggest_signal_mapping, explain_verification_errors, analyze_debug_artifact, chat_with_agent, generate_testbench_with_ai
 from backend.agent_engine import RTLVerificationAgent
+from backend.sim_engine import is_iverilog_available, get_iverilog_version, simulate_with_custom_tb
 
 # Create DB tables
 Base.metadata.create_all(bind=engine)
@@ -46,6 +47,22 @@ async def checkers():
         "default": "AND",
         "supported": get_supported_checkers(),
         "definitions": get_checker_definitions(),
+    }
+
+
+@app.get("/sim/backend_info")
+async def sim_backend_info():
+    """Returns which simulation backend is active (iverilog or built-in)."""
+    if is_iverilog_available():
+        return {
+            "backend": "iverilog",
+            "version": get_iverilog_version(),
+            "description": "Icarus Verilog — full IEEE 1364 Verilog simulator",
+        }
+    return {
+        "backend": "builtin",
+        "version": None,
+        "description": "Built-in behavioral simulator (no iverilog found on PATH)",
     }
 
 @app.post("/upload")
@@ -240,7 +257,65 @@ async def websocket_agent_endpoint(websocket: WebSocket, session_id: str):
         print(f"Client disconnected: {session_id}")
     except Exception as e:
         await websocket.send_json({"type": "error", "message": str(e)})
-        
+
+
+# ---------------------------------------------------------------------------
+# Code Lab endpoints
+# ---------------------------------------------------------------------------
+
+class CustomSimRequest(BaseModel):
+    rtl_code: str
+    tb_code: str
+    checker: str = "AND"
+
+
+@app.post("/sim/run_custom")
+async def run_custom_simulation(req: CustomSimRequest):
+    """
+    Compile and simulate user-provided RTL + testbench.
+    Returns VCD text, console output, and verification results.
+    """
+    success, vcd, console, verify = simulate_with_custom_tb(
+        req.rtl_code, req.tb_code, req.checker
+    )
+    signals_found: List[str] = []
+    if success and vcd:
+        from backend import parse_vcd_text
+        try:
+            parsed = parse_vcd_text(vcd)
+            signals_found = sorted(parsed["transitions"].keys())
+        except Exception:
+            pass
+
+    return {
+        "success": success,
+        "vcd": vcd if success else None,
+        "console_output": console,
+        "verdict": verify.get("verdict", "Error") if verify else "Error",
+        "errors": verify.get("errors", []) if verify else [],
+        "error_count": verify.get("error_count", 0) if verify else 0,
+        "summary": verify.get("summary", {}) if verify else {},
+        "checker": verify.get("checker", req.checker) if verify else req.checker,
+        "signals_found": signals_found,
+        "backend": "iverilog" if is_iverilog_available() else "builtin",
+    }
+
+
+class GenerateTBRequest(BaseModel):
+    rtl_code: str
+    checker: str = ""
+    api_key: str = ""
+
+
+@app.post("/ai/generate_testbench")
+async def generate_testbench(req: GenerateTBRequest):
+    """Use Gemini to generate a simulation-ready Verilog testbench."""
+    tb_code = generate_testbench_with_ai(
+        req.rtl_code, req.checker, req.api_key
+    )
+    return {"testbench_code": tb_code}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

@@ -1,15 +1,17 @@
 "use client";
 import React, { useState } from 'react';
-import { Terminal, Activity, MessageSquare, Code2, Play, Settings } from 'lucide-react';
+import { Terminal, Activity, Code2, Play, Settings, Bot, Cpu } from 'lucide-react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import WaveformViewer from '@/components/WaveformViewer';
+import Link from 'next/link';
 
 const API_BASE = "http://localhost:8000";
 
 export default function Home() {
-  const [parsedData, setParsedData] = useState(null);
-  const [errors, setErrors] = useState([]);
+  type ParsedData = { timescale: string; transitions: Record<string, {time: number; value: string}[]> } | null;
+  const [parsedData, setParsedData] = useState<ParsedData>(null);
+  const [errors, setErrors] = useState<{signal: string; time?: number; message: string}[]>([]);
   const [verdict, setVerdict] = useState("Waiting for input");
   const [checker, setChecker] = useState("AND");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -56,8 +58,53 @@ export default function Home() {
     }
   };
 
+  const [simBackend, setSimBackend] = React.useState<{backend: string; version: string | null} | null>(null);
+
+  React.useEffect(() => {
+    fetch(`${API_BASE}/sim/backend_info`).then(r => r.json()).then(setSimBackend).catch(() => {});
+  }, []);
+
   return (
-    <div className="flex h-screen bg-[#030303] text-slate-100 font-sans overflow-hidden">
+    <div className="flex h-screen bg-[#030303] text-slate-100 font-sans overflow-hidden flex-col">
+      {/* Top Navigation */}
+      <nav className="h-14 border-b border-white/5 flex items-center px-6 gap-4 bg-black/30 backdrop-blur-md z-20 flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <motion.div
+            whileHover={{ scale: 1.05, rotate: 5 }}
+            className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-400 to-purple-600 flex items-center justify-center shadow-[0_0_15px_rgba(0,229,255,0.25)]"
+          >
+            <Activity className="text-white w-4 h-4" />
+          </motion.div>
+          <span className="font-bold text-base bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">LogicAgent</span>
+        </div>
+        <div className="flex items-center gap-1 ml-2">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            <Code2 className="w-3.5 h-3.5" />
+            Verifier
+          </div>
+          <Link href="/agent" className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+            <Bot className="w-3.5 h-3.5" />
+            Agent Studio
+          </Link>
+          <Link href="/lab" className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+            <Code2 className="w-3.5 h-3.5" />
+            Code Lab
+          </Link>
+        </div>
+        {simBackend && (
+          <div className={`ml-auto flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-mono ${
+            simBackend.backend === 'iverilog'
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+              : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+          }`}>
+            <Cpu className="w-3.5 h-3.5" />
+            {simBackend.backend === 'iverilog' ? `iverilog ${simBackend.version?.split(' ')[2] ?? ''}` : 'Built-in Sim'}
+          </div>
+        )}
+      </nav>
+
+      {/* Main Content: Sidebar + Content */}
+      <div className="flex flex-1 min-h-0">
       {/* Sidebar */}
       <motion.aside 
         initial={{ x: -300, opacity: 0 }}
@@ -178,6 +225,7 @@ export default function Home() {
           </div>
         </div>
       </main>
+      </div>
     </div>
   );
 }

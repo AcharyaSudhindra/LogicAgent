@@ -176,3 +176,54 @@ def chat_with_agent(message: str, user_api_key: str = "") -> str:
         return response.text
     except Exception as e:
         return f"Error communicating with Gemini: {str(e)}"
+
+
+def generate_testbench_with_ai(rtl_code: str, checker: str = "", user_api_key: str = "") -> str:
+    """
+    Uses Gemini to generate a complete, simulation-ready Verilog testbench
+    for the given RTL module. The testbench includes $dumpfile/$dumpvars so
+    it produces a VCD when run through iverilog/vvp.
+    """
+    if not HAS_GENAI:
+        return "// Error: google-genai not installed."
+
+    api_key = user_api_key or os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return "// Error: GEMINI_API_KEY not set."
+
+    checker_hint = f"\nThe checker used to verify this design is: {checker.upper()}." if checker else ""
+
+    system_prompt = (
+        "You are an expert Verilog verification engineer. "
+        "Generate a complete, simulation-ready Verilog testbench for the provided RTL module.\n\n"
+        "STRICT RULES:\n"
+        "1. Output ONLY valid Verilog code — no markdown, no explanations, no code fences.\n"
+        "2. The testbench MUST include:\n"
+        "   - `$dumpfile(\"dump.vcd\")` and `$dumpvars(0, <tb_module_name>)` at the start of the initial block.\n"
+        "   - Stimulus covering all meaningful input combinations.\n"
+        "   - `$finish` at the end.\n"
+        "3. Instantiate the DUT using named port connections (e.g. .port(signal)).\n"
+        "4. Use `\\`timescale 1ns/1ps` at the top.\n"
+        "5. Declare all inputs as `reg` and all outputs as `wire`."
+    )
+
+    prompt = f"Generate a testbench for this Verilog module:{checker_hint}\n\n{rtl_code}"
+
+    try:
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                temperature=0.1,
+            )
+        )
+        tb_text = response.text.strip()
+        # Strip any accidental markdown code fences
+        if tb_text.startswith("```"):
+            lines = tb_text.split("\n")
+            tb_text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+        return tb_text
+    except Exception as e:
+        return f"// Error generating testbench: {str(e)}"
