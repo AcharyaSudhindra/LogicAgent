@@ -636,14 +636,13 @@ def simulate_verilog(code: str, checker: str) -> Tuple[bool, str, Dict[str, Any]
 # ---------------------------------------------------------------------------
 
 def simulate_with_custom_tb(
-    rtl_code: str,
-    tb_code: str,
-    checker: str = "AND",
+    files: List[Dict[str, str]],
+    checker: str = "",
 ) -> Tuple[bool, str, str, Dict[str, Any]]:
     """
-    Simulate a user-provided RTL module alongside a user-provided testbench.
-    If iverilog is available: compiles rtl.v + tb.v, runs vvp, reads VCD.
-    If not: falls back to the built-in simulator (tb_code is ignored).
+    Simulate a user-provided multi-file Verilog project.
+    If iverilog is available: compiles all files, runs vvp, reads VCD.
+    If not: falls back to the built-in simulator (only uses the first file).
     Returns: (success, vcd_text_or_error, console_output, verify_results)
     """
     from backend import parse_vcd_text, verify_waveform
@@ -651,18 +650,24 @@ def simulate_with_custom_tb(
     if is_iverilog_available():
         tmpdir = tempfile.mkdtemp(prefix="logicagent_lab_")
         try:
-            rtl_path = os.path.join(tmpdir, "rtl.v")
-            tb_path  = os.path.join(tmpdir, "tb.v")
             vvp_path = os.path.join(tmpdir, "sim.vvp")
             vcd_path = os.path.join(tmpdir, "dump.vcd")
 
-            with open(rtl_path, "w") as f:
-                f.write(rtl_code)
-            with open(tb_path, "w") as f:
-                f.write(tb_code)
+            verilog_files = []
+            for f in files:
+                filepath = os.path.join(tmpdir, f["name"])
+                # Ensure directory exists if there are subdirectories
+                os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                with open(filepath, "w") as out_f:
+                    out_f.write(f["content"])
+                if filepath.endswith(".v") or filepath.endswith(".sv"):
+                    verilog_files.append(filepath)
+
+            if not verilog_files:
+                return False, "Compile Error: No .v or .sv files found.", "No Verilog files provided.", {}
 
             compile_result = subprocess.run(
-                ["iverilog", "-o", vvp_path, tb_path, rtl_path],
+                ["iverilog", "-o", vvp_path] + verilog_files,
                 capture_output=True, text=True, timeout=30, cwd=tmpdir
             )
             console_lines = []
@@ -699,14 +704,48 @@ def simulate_with_custom_tb(
             with open(vcd_path, "r", errors="ignore") as f:
                 vcd_text = f.read()
 
-            try:
-                parsed = parse_vcd_text(vcd_text)
-                chk = checker.upper() if checker else "AND"
-                verify_results = verify_waveform(parsed, checker=chk)
-            except Exception as e:
-                verify_results = {"verdict": "Error", "errors": [{"message": str(e)}], "summary": {}}
+            verify_results = {}
+            
+            # Check for custom assertions file
+            assertions_file = next((f for f in files if f["name"].lower() == "assertions.txt"), None)
+            custom_assertions = []
+            if assertions_file:
+                custom_assertions = [line.strip() for line in assertions_file["content"].splitlines() if line.strip() and not line.strip().startswith("//")]
 
-            console_lines.append(f"✓ Checker ({checker}): {verify_results.get('verdict', 'N/A')}")
+            if checker and checker.strip() and checker.upper() != "CUSTOM":
+                try:
+                    parsed = parse_vcd_text(vcd_text)
+                    chk = checker.upper()
+                    verify_results = verify_waveform(parsed, checker=chk)
+                    console_lines.append(f"✓ Checker ({checker}): {verify_results.get('verdict', 'N/A')}")
+                except Exception as e:
+                    verify_results = {"verdict": "Error", "errors": [{"message": str(e)}], "summary": {}}
+                    console_lines.append(f"✗ Checker error: {str(e)}")
+            elif custom_assertions:
+                from backend.assertion_engine import evaluate_assertion
+                try:
+                    parsed = parse_vcd_text(vcd_text)
+                    all_errors = []
+                    checked_points = 0
+                    for ast_str in custom_assertions:
+                        res = evaluate_assertion(parsed, ast_str, signal_map={})
+                        if res.get("errors"):
+                            all_errors.extend(res["errors"])
+                        checked_points += res.get("summary", {}).get("checked_timestamps", 0)
+                    
+                    verdict = "Incorrect" if all_errors else "Correct"
+                    verify_results = {
+                        "verdict": verdict,
+                        "error_count": len(all_errors),
+                        "errors": all_errors,
+                        "summary": {"checked_timestamps": checked_points},
+                        "checker": "CUSTOM_ASSERTIONS"
+                    }
+                    console_lines.append(f"✓ Custom Assertions: {verdict} ({len(all_errors)} errors)")
+                except Exception as e:
+                    verify_results = {"verdict": "Error", "errors": [{"message": str(e)}], "summary": {}}
+                    console_lines.append(f"✗ Assertion error: {str(e)}")
+
             return True, vcd_text, "\n".join(console_lines), verify_results
 
         except subprocess.TimeoutExpired:
@@ -716,12 +755,15 @@ def simulate_with_custom_tb(
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
-    # Built-in fallback (testbench ignored)
+    # Built-in fallback (uses only the first file)
     warning = (
         "⚠ iverilog not found — running built-in simulator (testbench ignored).\n"
         "  Install Icarus Verilog: https://bleyer.org/icarus/\n"
     )
-    success, vcd_text, verify_results = simulate_verilog(rtl_code, checker)
+    if not files:
+        return False, "No files provided", warning, {}
+    first_file_content = files[0]["content"]
+    success, vcd_text, verify_results = simulate_verilog(first_file_content, checker or "AND")
     console_out = warning
     if success:
         console_out += f"✓ Built-in simulation complete. Verdict: {verify_results.get('verdict', 'N/A')}"

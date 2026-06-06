@@ -214,8 +214,11 @@ function ConsoleLine({ line }: { line: string }) {
 // Main page
 // ---------------------------------------------------------------------------
 export default function CodeLab() {
-  const [rtlCode, setRtlCode] = useState(EXAMPLES.and_buggy.rtl);
-  const [tbCode,  setTbCode]  = useState(EXAMPLES.and_buggy.tb);
+  const [files, setFiles] = useState<{name: string, content: string}[]>([
+    { name: "rtl.v", content: EXAMPLES.and_buggy.rtl },
+    { name: "tb.v", content: EXAMPLES.and_buggy.tb }
+  ]);
+  const [activeFileIndex, setActiveFileIndex] = useState(0);
   const [checker, setChecker] = useState("AND");
   const [checkers, setCheckers] = useState<string[]>(["AND", "DFF", "FULL_ADDER", "MUX2"]);
   const [apiKey, setApiKey]   = useState("");
@@ -245,8 +248,11 @@ export default function CodeLab() {
   const loadExample = useCallback((key: string) => {
     const ex = EXAMPLES[key];
     if (!ex) return;
-    setRtlCode(ex.rtl);
-    setTbCode(ex.tb);
+    setFiles([
+      { name: "rtl.v", content: ex.rtl },
+      { name: "tb.v", content: ex.tb }
+    ]);
+    setActiveFileIndex(0);
     setChecker(ex.checker);
     setSimResult(null);
     setParsedData(null);
@@ -263,7 +269,7 @@ export default function CodeLab() {
       const res = await fetch(`${API_BASE}/sim/run_custom`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rtl_code: rtlCode, tb_code: tbCode, checker }),
+        body: JSON.stringify({ files, checker }),
       });
       const data: SimResult = await res.json();
       setSimResult(data);
@@ -296,10 +302,19 @@ export default function CodeLab() {
       const res = await fetch(`${API_BASE}/ai/generate_testbench`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rtl_code: rtlCode, checker, api_key: apiKey }),
+        body: JSON.stringify({ rtl_code: files.find(f => f.name.endsWith('.v') && !f.name.startsWith('tb'))?.content || "", checker, api_key: apiKey }),
       });
       const data = await res.json();
-      if (data.testbench_code) setTbCode(data.testbench_code);
+      if (data.testbench_code) {
+        setFiles(prev => {
+          const newFiles = [...prev];
+          const tbIdx = newFiles.findIndex(f => f.name === "tb.v");
+          if (tbIdx >= 0) newFiles[tbIdx].content = data.testbench_code;
+          else newFiles.push({ name: "tb.v", content: data.testbench_code });
+          return newFiles;
+        });
+        setActiveFileIndex(files.findIndex(f => f.name === "tb.v") >= 0 ? files.findIndex(f => f.name === "tb.v") : files.length);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -362,6 +377,7 @@ export default function CodeLab() {
         <div className="ml-auto flex items-center gap-3">
           {/* API key for AI generate */}
           <input
+            id="api-key-input"
             type="password"
             value={apiKey}
             onChange={e => setApiKey(e.target.value)}
@@ -388,49 +404,55 @@ export default function CodeLab() {
           {/* Editor panels */}
           <div className="flex flex-1 min-h-0 border-b border-white/5" style={{ height: "55%" }}>
 
-            {/* RTL Editor inside Mock IDE Frame */}
-            <div className="flex flex-col w-1/2 border-r border-white/5 min-w-0">
-              <div className="flex items-center gap-4 px-4 py-3 border-b border-white/5 bg-zinc-950/60 flex-shrink-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full window-dot-red block" />
-                  <span className="w-2.5 h-2.5 rounded-full window-dot-yellow block" />
-                  <span className="w-2.5 h-2.5 rounded-full window-dot-green block" />
-                </div>
-                <div className="flex items-center gap-1.5 text-xs font-mono font-semibold text-zinc-300">
-                  <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(6,182,212,0.6)]" />
-                  rtl.v <span className="text-zinc-600 font-sans font-normal">— RTL Design Module</span>
-                </div>
-                <button
-                  onClick={() => setRtlCode("")}
-                  className="ml-auto text-zinc-600 hover:text-zinc-400 transition-colors cursor-pointer"
-                  title="Clear RTL code"
+            {/* Sidebar File Explorer */}
+            <div className="w-48 flex flex-col border-r border-white/5 bg-[#030304]">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-white/5 bg-zinc-950/60">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Workspace</span>
+                <button 
+                  onClick={() => {
+                    const name = prompt("Enter file name (e.g., new_module.v):", "new_module.v");
+                    if (name) {
+                      setFiles([...files, { name, content: "" }]);
+                      setActiveFileIndex(files.length);
+                    }
+                  }}
+                  className="text-zinc-500 hover:text-cyan-400 transition-colors"
+                  title="New File"
                 >
-                  <RotateCcw className="w-3 h-3" />
+                  <Sparkles className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <div className="flex-1 min-h-0 bg-[#050507]">
-                <MonacoEditor
-                  height="100%"
-                  defaultLanguage="verilog"
-                  theme="vs-dark"
-                  value={rtlCode}
-                  onChange={v => setRtlCode(v || "")}
-                  options={{
-                    fontSize: 13,
-                    fontFamily: "\"Geist Mono\", \"Fira Code\", monospace",
-                    minimap: { enabled: false },
-                    scrollBeyondLastLine: false,
-                    lineNumbers: "on",
-                    padding: { top: 12, bottom: 12 },
-                    smoothScrolling: true,
-                    renderLineHighlight: "all",
-                  }}
-                />
+              <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                {files.map((file, idx) => (
+                  <div 
+                    key={idx}
+                    onClick={() => setActiveFileIndex(idx)}
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer text-xs font-mono transition-colors ${idx === activeFileIndex ? 'bg-cyan-500/10 text-cyan-400 font-semibold' : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'}`}
+                  >
+                    <div className={`w-1.5 h-1.5 rounded-full ${file.name.startsWith('tb') ? 'bg-purple-400' : 'bg-cyan-400'}`} />
+                    {file.name}
+                    {files.length > 1 && (
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm(`Delete ${file.name}?`)) {
+                            const newFiles = files.filter((_, i) => i !== idx);
+                            setFiles(newFiles);
+                            if (activeFileIndex >= idx && activeFileIndex > 0) setActiveFileIndex(activeFileIndex - 1);
+                          }
+                        }}
+                        className="ml-auto text-zinc-600 hover:text-red-400 opacity-0 hover:opacity-100 transition-opacity"
+                      >
+                        <XCircle className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Testbench Editor inside Mock IDE Frame */}
-            <div className="flex flex-col w-1/2 min-w-0">
+            {/* Active Editor */}
+            <div className="flex flex-col flex-1 min-w-0">
               <div className="flex items-center gap-4 px-4 py-3 border-b border-white/5 bg-zinc-950/60 flex-shrink-0">
                 <div className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full window-dot-red block" />
@@ -438,24 +460,26 @@ export default function CodeLab() {
                   <span className="w-2.5 h-2.5 rounded-full window-dot-green block" />
                 </div>
                 <div className="flex items-center gap-1.5 text-xs font-mono font-semibold text-zinc-300">
-                  <div className="w-1.5 h-1.5 rounded-full bg-purple-400 shadow-[0_0_6px_rgba(168,85,247,0.6)]" />
-                  tb.v <span className="text-zinc-600 font-sans font-normal">— Simulation Testbench</span>
+                  <div className={`w-1.5 h-1.5 rounded-full ${files[activeFileIndex]?.name.startsWith('tb') ? 'bg-purple-400 shadow-[0_0_6px_rgba(168,85,247,0.6)]' : 'bg-cyan-400 shadow-[0_0_6px_rgba(6,182,212,0.6)]'}`} />
+                  {files[activeFileIndex]?.name}
                 </div>
-                <motion.button
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={generateTestbench}
-                  disabled={isGeneratingTB || !rtlCode.trim()}
-                  className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-300 hover:bg-purple-500/25 transition-all disabled:opacity-40 font-semibold text-[11px] cursor-pointer"
-                >
-                  {isGeneratingTB
-                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Writing...</>
-                    : <><Sparkles className="w-3.5 h-3.5" /> AI Generate Testbench</>}
-                </motion.button>
+                {files[activeFileIndex]?.name === 'tb.v' && (
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={generateTestbench}
+                    disabled={isGeneratingTB || files.length === 0}
+                    className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-300 hover:bg-purple-500/25 transition-all disabled:opacity-40 font-semibold text-[11px] cursor-pointer"
+                  >
+                    {isGeneratingTB
+                      ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Writing...</>
+                      : <><Sparkles className="w-3.5 h-3.5" /> AI Generate Testbench</>}
+                  </motion.button>
+                )}
               </div>
               <div className="flex-1 min-h-0 relative bg-[#050507]">
                 <AnimatePresence>
-                  {isGeneratingTB && (
+                  {isGeneratingTB && files[activeFileIndex]?.name === 'tb.v' && (
                     <motion.div
                       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                       className="absolute inset-0 z-10 bg-purple-950/30 backdrop-blur-sm flex items-center justify-center"
@@ -467,24 +491,86 @@ export default function CodeLab() {
                     </motion.div>
                   )}
                 </AnimatePresence>
-                <MonacoEditor
-                  height="100%"
-                  defaultLanguage="verilog"
-                  theme="vs-dark"
-                  value={tbCode}
-                  onChange={v => setTbCode(v || "")}
-                  options={{
-                    fontSize: 13,
-                    fontFamily: "\"Geist Mono\", \"Fira Code\", monospace",
-                    minimap: { enabled: false },
-                    scrollBeyondLastLine: false,
-                    lineNumbers: "on",
-                    padding: { top: 12, bottom: 12 },
-                    smoothScrolling: true,
-                    renderLineHighlight: "all",
-                    readOnly: isGeneratingTB,
-                  }}
-                />
+                {files.length > 0 && (
+                  <MonacoEditor
+                    key={activeFileIndex}
+                    height="100%"
+                    defaultLanguage="verilog"
+                    theme="vs-dark"
+                    value={files[activeFileIndex].content}
+                    onChange={v => {
+                      const newFiles = [...files];
+                      newFiles[activeFileIndex].content = v || "";
+                      setFiles(newFiles);
+                    }}
+                    onMount={(editor, monaco) => {
+                      editor.addAction({
+                        id: 'inline-ai-edit',
+                        label: 'AI Inline Edit',
+                        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyI],
+                        run: async (ed) => {
+                          const selection = ed.getSelection();
+                          const model = ed.getModel();
+                          if (!selection || !model) return;
+                          
+                          let range = selection;
+                          let selectedText = model.getValueInRange(selection);
+                          
+                          // If no selection, grab the current line
+                          if (selectedText.trim() === "") {
+                            range = new monaco.Range(selection.startLineNumber, 1, selection.endLineNumber, model.getLineMaxColumn(selection.endLineNumber));
+                            selectedText = model.getValueInRange(range);
+                          }
+
+                          const instruction = prompt("✨ AI Copilot:\nWhat do you want to change in this code?", "Optimize this module");
+                          if (!instruction) return;
+                          
+                          // Optional: we can fetch the latest api key directly from the input element if needed, 
+                          // but since this is a demo, let's grab it by element ID or just pass apiKey if it's updated.
+                          const keyEl = document.getElementById("api-key-input") as HTMLInputElement;
+                          const currentApiKey = keyEl ? keyEl.value : "";
+
+                          try {
+                            const res = await fetch(`${API_BASE}/ai/inline_edit`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ 
+                                code: model.getValue(), 
+                                selection: selectedText, 
+                                instruction: instruction,
+                                api_key: currentApiKey
+                              }),
+                            });
+                            const data = await res.json();
+                            if (data.new_code) {
+                              ed.executeEdits("ai-copilot", [{
+                                range: range,
+                                text: data.new_code,
+                                forceMoveMarkers: true
+                              }]);
+                            } else {
+                                alert("Failed to generate code.");
+                            }
+                          } catch (e) {
+                            console.error(e);
+                            alert("Error contacting AI server.");
+                          }
+                        }
+                      });
+                    }}
+                    options={{
+                      fontSize: 13,
+                      fontFamily: "\"Geist Mono\", \"Fira Code\", monospace",
+                      minimap: { enabled: false },
+                      scrollBeyondLastLine: false,
+                      lineNumbers: "on",
+                      padding: { top: 12, bottom: 12 },
+                      smoothScrolling: true,
+                      renderLineHighlight: "all",
+                      readOnly: isGeneratingTB,
+                    }}
+                  />
+                )}
               </div>
             </div>
           </div>

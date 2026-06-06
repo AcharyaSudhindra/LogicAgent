@@ -227,3 +227,49 @@ def generate_testbench_with_ai(rtl_code: str, checker: str = "", user_api_key: s
         return tb_text
     except Exception as e:
         return f"// Error generating testbench: {str(e)}"
+
+def generate_inline_edit_with_ai(code: str, selection: str, instruction: str, user_api_key: str = "") -> str:
+    """
+    Uses Gemini to perform an inline edit on the Verilog code based on the user's instruction.
+    Returns the modified code block to replace the selection.
+    """
+    if not HAS_GENAI:
+        return "// Error: google-genai not installed."
+
+    api_key = user_api_key or os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return "// Error: GEMINI_API_KEY not set."
+
+    system_prompt = (
+        "You are an expert Verilog engineer acting as an inline AI Copilot. "
+        "You will be given the full file context, the user's selected code block, and their instruction. "
+        "Your task is to output ONLY the replacement code for the selected block. "
+        "STRICT RULES:\n"
+        "1. Do not output markdown fences (```verilog) around the result.\n"
+        "2. Do not explain your changes.\n"
+        "3. Output ONLY the exact replacement text that will substitute the selection."
+    )
+
+    prompt = (
+        f"Context (full file):\n{code}\n\n"
+        f"Selected block to modify:\n{selection}\n\n"
+        f"Instruction: {instruction}"
+    )
+
+    try:
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                temperature=0.1,
+            )
+        )
+        edit_text = response.text.strip()
+        if edit_text.startswith("```"):
+            lines = edit_text.split("\n")
+            edit_text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+        return edit_text
+    except Exception as e:
+        return f"// Error generating inline edit: {str(e)}"

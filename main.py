@@ -263,9 +263,12 @@ async def websocket_agent_endpoint(websocket: WebSocket, session_id: str):
 # Code Lab endpoints
 # ---------------------------------------------------------------------------
 
+class FileItem(BaseModel):
+    name: str
+    content: str
+
 class CustomSimRequest(BaseModel):
-    rtl_code: str
-    tb_code: str
+    files: List[FileItem]
     checker: str = "AND"
 
 
@@ -275,8 +278,9 @@ async def run_custom_simulation(req: CustomSimRequest):
     Compile and simulate user-provided RTL + testbench.
     Returns VCD text, console output, and verification results.
     """
+    files_dict = [{"name": f.name, "content": f.content} for f in req.files]
     success, vcd, console, verify = simulate_with_custom_tb(
-        req.rtl_code, req.tb_code, req.checker
+        files_dict, req.checker
     )
     signals_found: List[str] = []
     if success and vcd:
@@ -314,6 +318,21 @@ async def generate_testbench(req: GenerateTBRequest):
         req.rtl_code, req.checker, req.api_key
     )
     return {"testbench_code": tb_code}
+
+class InlineEditRequest(BaseModel):
+    code: str
+    selection: str
+    instruction: str
+    api_key: str = ""
+
+@app.post("/ai/inline_edit")
+async def inline_edit(req: InlineEditRequest):
+    """Use Gemini to perform an inline edit on Verilog code."""
+    from backend.smart_engine import generate_inline_edit_with_ai
+    new_code = generate_inline_edit_with_ai(
+        req.code, req.selection, req.instruction, req.api_key
+    )
+    return {"new_code": new_code}
 
 
 if __name__ == "__main__":

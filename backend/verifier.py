@@ -33,6 +33,7 @@ CHECKER_METADATA: Dict[str, Dict[str, Any]] = {
     "T_FF": {"kind": "sequential", "required": ["clk", "t", "q"], "optional": ["rst"], "description": "T Flip-Flop: q toggles if t=1 at posedge clk"},
     "JK_FF": {"kind": "sequential", "required": ["clk", "j", "k", "q"], "optional": ["rst"], "description": "JK Flip-Flop: q changes based on j,k at posedge clk"},
     "ASSERTION": {"kind": "temporal", "required": [], "optional": [], "description": "Custom temporal logic assertion engine"},
+    "CUSTOM": {"kind": "project", "required": [], "optional": [], "description": "Unrestricted Multi-File Simulation with optional assertions.txt"},
 }
 
 
