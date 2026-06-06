@@ -335,6 +335,12 @@ async def inline_edit(req: InlineEditRequest):
     return {"new_code": new_code}
 
 
+from fastapi.staticfiles import StaticFiles
+
+# Mount static files for the Next.js frontend (make sure this is at the end so it doesn't override API routes)
+if os.path.isdir("static"):
+    app.mount("/", StaticFiles(directory="static", html=True), name="frontend")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=os.environ.get("UVICORN_RELOAD", "0") == "1")

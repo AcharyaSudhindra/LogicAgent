@@ -63,19 +63,26 @@ To deploy the backend API and frontend client manually:
 
 ```bash
 # Install required backend dependencies
-pip install flask google-genai
+pip install fastapi uvicorn sqlalchemy google-genai
 
-# Initialize the Flask WSGI server
-python app.py
+# Build the Next.js frontend (requires Node.js)
+cd frontend
+npm install
+npm run build
+cd ..
+# (Optional) Move frontend/out to static folder if not automated
+
+# Initialize the FastAPI ASGI server
+python main.py
 ```
-Access the client dashboard at: `http://127.0.0.1:5000/`
+Access the client dashboard at: `http://127.0.0.1:8000/`
 
 ## System Architecture
 
 The project is structured into discrete, decoupled micro-components:
 
 ### Backend Architecture
-- **`app.py`**: The Flask application layer handling HTTP REST requests and Server-Sent Events (SSE) for asynchronous telemetry.
+- **`main.py`**: The FastAPI application layer handling HTTP REST requests, WebSockets for asynchronous telemetry, and serving the static Next.js frontend.
 - **`backend/agent_engine.py`**: The autonomous controller orchestrating the LLM tool-calling loop, simulator execution, and state rollback mechanisms.
 - **`backend/smart_engine.py`**: The AI integration layer managing chat context windows and contextual error explanations.
 - **`backend/sim_engine.py`**: The deterministic behavioral Verilog parser and in-memory execution engine.
@@ -83,6 +90,5 @@ The project is structured into discrete, decoupled micro-components:
 - **`backend/vcd_parser.py`**: A robust regex-based parser that deserializes IEEE standard VCD files into Python dictionaries.
 
 ### Frontend Architecture
-- **`index.html`**: The unified Single Page Application (SPA) shell utilizing a modular, tab-based layout.
-- **`static/js/app.js`**: Client-side logic for waveform rendering, DOM manipulation, state management, and continuous SSE stream consumption from the agent backend.
-- **`static/css/styles.css`**: A highly responsive, modern stylesheet leveraging CSS variables, grid layouts, and hardware-accelerated micro-animations.
+- **`frontend/`**: The modern React/Next.js frontend application, built with TypeScript and Tailwind CSS.
+- **`static/`**: The compiled static export of the Next.js frontend, served directly by the FastAPI backend.
