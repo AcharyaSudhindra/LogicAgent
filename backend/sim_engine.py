@@ -654,8 +654,12 @@ def simulate_with_custom_tb(
             vcd_path = os.path.join(tmpdir, "dump.vcd")
 
             verilog_files = []
+            base_path = os.path.abspath(tmpdir)
             for f in files:
-                filepath = os.path.join(tmpdir, f["name"])
+                filepath = os.path.abspath(os.path.join(base_path, f["name"]))
+                # Prevent path traversal
+                if not filepath.startswith(base_path + os.sep) and filepath != base_path:
+                    continue
                 # Ensure directory exists if there are subdirectories
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
                 with open(filepath, "w") as out_f:
