@@ -646,14 +646,29 @@ export default function Home() {
                     <AlertCircle className="w-4 h-4" />
                     Waveform Verification Assertion Mismatches
                   </h3>
-                  <div className="text-xs font-mono text-rose-300/80 space-y-1">
+                  <motion.div
+                    className="text-xs font-mono text-rose-300/80 space-y-2 mt-2"
+                    initial="hidden"
+                    animate="visible"
+                    variants={{
+                      hidden: { opacity: 0 },
+                      visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+                    }}
+                  >
                     {errors.map((err, idx) => (
-                      <div key={idx} className="flex gap-2">
-                        <span className="text-rose-500/60">[{idx + 1}]</span>
+                      <motion.div 
+                        key={idx} 
+                        className="flex gap-2 p-2 bg-rose-500/10 rounded-lg border border-rose-500/10"
+                        variants={{
+                          hidden: { opacity: 0, x: -10 },
+                          visible: { opacity: 1, x: 0 }
+                        }}
+                      >
+                        <span className="text-rose-500 font-bold">[{idx + 1}]</span>
                         <span>{err.message || JSON.stringify(err)}</span>
-                      </div>
+                      </motion.div>
                     ))}
-                  </div>
+                  </motion.div>
                 </motion.div>
               )}
             </AnimatePresence>

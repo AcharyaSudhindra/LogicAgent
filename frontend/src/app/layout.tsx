@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import Chatbot from "@/components/Chatbot";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,6 +35,7 @@ export default function RootLayout({
           <div className="absolute -bottom-[20%] -right-[10%] w-[600px] h-[600px] bg-cyan-500/10 rounded-full blur-[140px] animate-mesh-2" />
         </div>
         {children}
+        <Chatbot />
       </body>
     </html>
   );
