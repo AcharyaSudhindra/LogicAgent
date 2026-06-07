@@ -74,10 +74,7 @@ def parse_signal_map_from_request() -> Dict[str, str]:
     return signal_map
 
 
-@app.route("/", methods=["GET"])
-def home():
-    return send_from_directory(".", "index.html")
-
+# Removed home route here, moved to catch-all at the bottom
 
 @app.route("/checkers", methods=["GET"])
 def checkers():
@@ -309,5 +306,15 @@ def run_agent_loop(session_id):
     return Response(stream(), mimetype="text/event-stream")
 
 
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve_nextjs(path):
+    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, path)
+    elif path != "" and os.path.exists(os.path.join(app.static_folder, f"{path}.html")):
+        return send_from_directory(app.static_folder, f"{path}.html")
+    else:
+        return send_from_directory(app.static_folder, "index.html")
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=os.environ.get("FLASK_DEBUG", "0") == "1")
+    app.run(host="0.0.0.0", port=8000, debug=os.environ.get("FLASK_DEBUG", "0") == "1")
