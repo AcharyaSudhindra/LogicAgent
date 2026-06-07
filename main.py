@@ -337,10 +337,23 @@ async def inline_edit(req: InlineEditRequest):
 
 from fastapi.staticfiles import StaticFiles
 
-# Mount static files for the Next.js frontend (make sure this is at the end so it doesn't override API routes)
-if os.path.isdir("static"):
-    app.mount("/", StaticFiles(directory="static", html=True), name="frontend")
+import os
+from fastapi.responses import FileResponse
 
+# Serve index.html at root
+@app.get("/")
+async def serve_index():
+    return FileResponse("static/index.html")
+
+# Catch-all route to properly serve Next.js .html files even if a directory exists
+@app.get("/{full_path:path}")
+async def serve_nextjs_paths(full_path: str):
+    if os.path.isfile(f"static/{full_path}"):
+        return FileResponse(f"static/{full_path}")
+    if os.path.isfile(f"static/{full_path}.html"):
+        return FileResponse(f"static/{full_path}.html")
+    # Fallback to index
+    return FileResponse("static/index.html")
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=os.environ.get("UVICORN_RELOAD", "0") == "1")
